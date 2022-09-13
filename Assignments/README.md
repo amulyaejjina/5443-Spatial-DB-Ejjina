@@ -2,4 +2,4 @@
 
 |   #   | Folder Link | Assignment Description |
 | :---: | ----------- | ---------------------- |
-|    1  |     Project01        |         Connect to PostGreSQL using psycopg2 module and uses FastAPI to retrieve spatial data   |
+|    1  |     https://github.com/amulyaejjina/5443-Spatial-DB-Ejjina/tree/main/Assignments/Project01        |         Connect to PostGreSQL using psycopg2 module and use FastAPI to retrieve spatial data from tables.  |
