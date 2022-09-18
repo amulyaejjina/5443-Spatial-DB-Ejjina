@@ -3,6 +3,11 @@
 ##  Part 1 of Project2
 ### Loading tables with data and creating index on geometry column
 
+#### Used shp2pgsql to create tables with data :
+
+shp2pgsql -s 4326 -I INPUTSHAPEFILE.shp TABLENAME| psql -d DATABASENAME -U USERNAME
+
+
 |   #   | Data | Link |
 | :---: | ----------- | ---------------------- |
 |    1  |     Airports       |  https://cs.msutexas.edu/~griffin/data/Airport_and_Plane_Data/airports.csv|
