@@ -5,8 +5,9 @@
 
 #### Used shp2pgsql to create tables with data :
 
-shp2pgsql -s 4326 -I INPUTSHAPEFILE.shp TABLENAME| psql -d DATABASENAME -U USERNAME
+    shp2pgsql -s 4326 -I INPUTSHAPEFILE.shp TABLENAME| psql -d DATABASENAME -U USERNAME
 
+#### For Data files, go to respective links to downaload them -
 
 |   #   | Data | Link |
 | :---: | ----------- | ---------------------- |
