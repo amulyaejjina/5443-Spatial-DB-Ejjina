@@ -1,6 +1,6 @@
 
 
-##  Part 1 of Project2
+##  Part 1 of Project2 - Data Setup
 ### Loading tables with data and creating index on geometry column
 
 #### Used shp2pgsql to create tables with data :
