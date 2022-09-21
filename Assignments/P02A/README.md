@@ -23,3 +23,6 @@
 |    1  |     main.py       |  Kind of a driver file,this is to connect to postgres & fetch and display table results|
 |    2  |     api.py       |  FastAPI routes to query multiple tables that we loaded|
 |    3  |     .sql files       |  Table create scripts of all the tables loaded|
+
+
+To run : python3 main.py
