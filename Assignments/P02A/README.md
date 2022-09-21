@@ -18,8 +18,8 @@
 |5|  Military Bases  |https://www2.census.gov/geo/tiger/TIGER2021/MIL/tl_2021_us_mil.zip|
 |6|  Time Zones  |https://www.naturalearthdata.com/http//www.naturalearthdata.com/download/10m/cultural/ne_10m_time_zones.zip|
 
-|   #   | Files description | Link |
+|   #   | File name | Description |
 | :---: | ----------- | ---------------------- |
 |    1  |     main.py       |  Kind of a driver file,this is to connect to postgres & fetch and display table results|
 |    2  |     api.py       |  FastAPI routes to query multiple tables that we loaded|
-|    3  |     .sql files       |  Create scripts of all the tables loaded|
+|    3  |     .sql files       |  Table create scripts of all the tables loaded|
