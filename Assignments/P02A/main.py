@@ -90,27 +90,28 @@ if __name__ == "__main__":
         for item in list:
             cur.execute(item)
             data = cur.fetchall()
-            for row in data:
-                print(row[0], )
-                print(row[1],)
-                print(row[2],)
-                print(row[3],)
-                print(row[4], )
-                if not  str(item) == str(primaryroadsquery):
-                    print(row[5],)
-                if str(item) == str(airportquery):
-                    print("Geometry  = ", json.dumps(row[15],indent=2))
-                if str(item) == str(milbasesquery):
-                    print("Geometry  = ", json.dumps(row[10],indent=2))
-                if str(item) == str(primaryroadsquery):
-                    print("Geometry  = ", json.dumps(row[6],indent=2))
-                if str(item) == str(railroadsquery):
-                    print("Geometry  = ", json.dumps(row[5],indent=2))
-                if str(item) == str(statesquery):
-                    print("Geometry  = ", json.dumps(row[16],indent=2))
-                if str(item) == str(timezonesquery):
-                    print("Geometry  = ", json.dumps(row[17],indent=2))
-                print("\n-----------------------------------------")
+            print(data)
+            # for row in data:
+            #     print(row[0], )
+            #     print(row[1],)
+            #     print(row[2],)
+            #     print(row[3],)
+            #     print(row[4], )
+            #     if not  str(item) == str(primaryroadsquery):
+            #         print(row[5],)
+            #     if str(item) == str(airportquery):
+            #         print("Geometry  = ", json.dumps(row[15],indent=2))
+            #     if str(item) == str(milbasesquery):
+            #         print("Geometry  = ", json.dumps(row[10],indent=2))
+            #     if str(item) == str(primaryroadsquery):
+            #         print("Geometry  = ", json.dumps(row[6],indent=2))
+            #     if str(item) == str(railroadsquery):
+            #         print("Geometry  = ", json.dumps(row[5],indent=2))
+            #     if str(item) == str(statesquery):
+            #         print("Geometry  = ", json.dumps(row[16],indent=2))
+            #     if str(item) == str(timezonesquery):
+            #         print("Geometry  = ", json.dumps(row[17],indent=2))
+            #     print("\n-----------------------------------------")
 
 
 # ---------------------   END OF PROGRAM   ----------------------------

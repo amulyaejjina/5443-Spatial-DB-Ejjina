@@ -1,0 +1,76 @@
+%----------------------------------------------------------------------
+%                            PROGRAM 2                                
+%  Names        : Amulya Ejjina,Ola Israel,Joseph F Mukembo
+%  Course      : CMPS 5113
+%  Instructor  : Dr.Tina Johnson
+%  Description : Use Prolog to define a bunch of facts,rules 
+%  				 and deduce results
+%----------------------------------------------------------------------
+
+% ---------------   Facts  ---------------
+
+female(anna).
+female(amy).
+female(avery).
+female(amelia).
+female(ava).
+female(abigail).
+female(asher).
+female(aiden).
+female(aria).
+female(aurora).
+male(barrett).
+male(benjamin).
+male(brayden).
+male(braxton).
+male(ben).
+male(bentley).
+male(brandon).
+male(brooks).
+male(brody).
+male(blythe).
+
+parent(amy,barrett).
+parent(amy,ben).
+parent(amy,ava).
+
+parent(benjamin,barrett).
+parent(benjamin,ben).
+parent(benjamin,ava).
+parent(ava,asher).
+
+parent(barrett,avery).
+
+parent(brayden,bentley).
+parent(brayden,brooks).
+parent(bentley,braxton).
+
+parent(aiden,blythe).
+parent(aiden,amelia).
+parent(aiden,aria).
+parent(brody,blythe).
+parent(brody,amelia).
+parent(brody,aria).
+
+parent(brody,amelia).
+parent(brody,aria).
+
+parent(abigail,aurora).
+parent(brandon,aurora).
+parent(amelia,anna).
+
+
+% ---------------   Rules  ---------------
+
+child(A, B) :- mother(B,A);father(B,A).
+grandparent(A,B):-parent(A,Z),parent(Z,B).
+brother(A,B):-parent(Z,A),parent(Z,B),male(A),B\==A.
+sister(A,B):-parent(Z,A),parent(Z,B),female(A),B\==A.
+
+% --------------- Extra relationship rules ---------------
+mother(X,Y):-female(X),parent(X,Y).
+father(X,Y):-male(X),parent(X,Y).
+uncle(A,Z):-brother(A,B),parent(B,Z),male(A).
+aunt(A,Z):-sister(A,B),parent(B,Z),female(A).
+
+
