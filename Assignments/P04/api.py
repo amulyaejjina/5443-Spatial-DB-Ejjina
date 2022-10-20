@@ -404,27 +404,26 @@ class Participant:
             cur.execute(geom)
             region = cur.fetchall()[0][0]
            
-            sql = f"""SELECT id, latitude, longitude, location::json FROM public.cities WHERE ST_INTERSECTS(location, '{region}');"""
-            print(sql)
+            sql = f"""SELECT ST_AsGeoJSON(ST_Transform(location, 4326),15,0)::json As geometry FROM public.cities WHERE ST_INTERSECTS(location, '{region}');"""
 
             cur.execute(sql)
             sql3= cur.fetchall()
-            features = []
-            features.append(sql3)
-            feature_collection = FeatureCollection(sql3)
+            # features = []
+            # features.append(sql3)
+            # feature_collection = FeatureCollection(sql3)
 
-            fc = {
-                "type": "FeatureCollection",
-                "features": feature_collection
-            }
-            feature = {
-            "type": "Feature",
-            "properties": {},
-            "geometry": {
-                "type": None
-            }
-            }
-            return fc
+            # fc = {
+            #     "type": "FeatureCollection",
+            #     "features": feature_collection
+            # }
+            # feature = {
+            # "type": "Feature",
+            # "properties": {},
+            # "geometry": {
+            #     "type": None
+            # }
+            # }
+            return sql3
 
     def assign_arsenal(self):
         return getArsenal(self.id)
@@ -520,15 +519,21 @@ def missilePath(d: str = None, buffer: float = 0):
 
     return [start, end]
 
+taken = []
 @app.get("/register")
 def register_user():
+    global taken
     server = MissileServer()
     # write a logic to find a unique id
-    id = random.randint(0, 5)
-    while id in participants.keys():
+    if(len(taken) < 6):
         id = random.randint(0, 5)
+        while id in participants.keys():
+            id = random.randint(0, 5)
+        taken.append(id)
+        return server.registerDefender(id)
 
-    return server.registerDefender(id)
+    else:    
+        return {'Error': 'No more regions available'}
     
 
 @app.get("/radar_sweep")
@@ -540,6 +545,11 @@ def radar_sweep():
 def missileInfo(name: str):
     return MissileInfo.missile(name)
 
+@app.get("/quit")
+def quit():
+    global taken
+    taken = []
+    return {'finished':'game has reset'}
 
 """
 This main block gets run when you invoke this file. How do you invoke this file?
