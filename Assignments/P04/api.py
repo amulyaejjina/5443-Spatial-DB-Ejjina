@@ -403,13 +403,28 @@ class Participant:
             geom = f"""SELECT newgeom from public.regions_simple WHERE cid = {self.id} AND gid = 6"""
             cur.execute(geom)
             region = cur.fetchall()[0][0]
-
-            sql = f"""SELECT * FROM public.cities WHERE ST_INTERSECTS(location, '{region}');"""
+           
+            sql = f"""SELECT id, latitude, longitude, location::json FROM public.cities WHERE ST_INTERSECTS(location, '{region}');"""
             print(sql)
 
             cur.execute(sql)
             sql3= cur.fetchall()
-            return sql3
+            features = []
+            features.append(sql3)
+            feature_collection = FeatureCollection(sql3)
+
+            fc = {
+                "type": "FeatureCollection",
+                "features": feature_collection
+            }
+            feature = {
+            "type": "Feature",
+            "properties": {},
+            "geometry": {
+                "type": None
+            }
+            }
+            return fc
 
     def assign_arsenal(self):
         return getArsenal(self.id)
