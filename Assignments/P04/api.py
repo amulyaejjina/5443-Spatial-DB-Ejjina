@@ -151,7 +151,7 @@ class DBQuery(object):
         if limit:
             self.limit = limit
 
-        return self.__query(sql + f" LIMIT {self.limit} OFFSET {offset}")
+        return self.__query(sql + f" LIMIT {self.limit} OFFSET {offset}", 1)
 
     def queryAll(self, sql, **kwargs):
 
@@ -162,7 +162,7 @@ class DBQuery(object):
         if limit:
             self.limit = limit
 
-        return self.__query(sql + f" LIMIT {self.limit} OFFSET {offset}")
+        return self.__query(sql)
 
     def queryMany(self, sql, **kwargs):
 
@@ -351,20 +351,70 @@ def getArsenal(id):
     return missileCount
 
     return feature_collection
+def get_region(id:int):
+    if id < 0:
+        where = " "
+    else:
+        where = " WHERE cid = {id} AND gid = {id}"
+
+    sql = f"""SELECT newgeom::json FROM public.regions_simple WHERE cid = {id} AND gid = 6"""
+    
+    features = []
+    with DatabaseCursor("config.json") as cur:
+        cur.execute(sql)
+        sql3= cur.fetchall()
+
+    features.append(sql3)
+    feature_collection = FeatureCollection(sql3)
+    # ufos = gpd.GeoDataFrame.from_postgis(sql3, conn , geom_col="geom")
+    # ufos.crs = "EPSG:4326"
+    # res =  ufos.__geo_interface__
+    
+    #print(res['data'][:2])
+    # with open('zzz2.json','w') as f:
+    #     json.dumps(res['data'],indent=4)
+
+    fc = {
+        "type": "FeatureCollection",
+        "features": feature_collection
+    }
+    feature = {
+      "type": "Feature",
+      "properties": {},
+      "geometry": {
+        "type": None
+      }
+    }
+    return fc
 
 class Participant:
     def __init__(self, id):
         self.id = id
-        self.region_id , self.region = self.assign_region()
-        self.arsenal = self.get_arsenal(self.region) 
+        self.region = self.assign_region()
+        self.arsenal = self.assign_arsenal() 
+        self.cities = self.assign_cities()
     
     def assign_region(self):
         #returns region id, and region object
-        region(self.id)
-        pass
+        return get_region(self.id)
+
+    def assign_cities(self):
+        with DatabaseCursor("config.json") as cur:
+            geom = f"""SELECT newgeom from public.regions_simple WHERE cid = {self.id} AND gid = 6"""
+            cur.execute(geom)
+            region = cur.fetchall()[0][0]
+
+            sql = f"""SELECT * FROM public.cities WHERE ST_INTERSECTS(location, '{region}');"""
+            print(sql)
+
+            cur.execute(sql)
+            sql3= cur.fetchall()
+            return sql3
 
     def assign_arsenal(self):
         return getArsenal(self.id)
+
+    
 
 class MissileServer(object):
     def __init__(self):
@@ -457,47 +507,14 @@ def missilePath(d: str = None, buffer: float = 0):
 
 @app.get("/register")
 def register_user():
+    server = MissileServer()
     # write a logic to find a unique id
-    id = random.randint(1, 20)
+    id = random.randint(0, 5)
     while id in participants.keys():
-        id = random.randint(1, 20)
-    return MissileServer.registerDefender(id)
+        id = random.randint(0, 5)
+
+    return server.registerDefender(id)
     
-@app.get("/region")
-def region(id:int):
-    if id < 0:
-        where = " "
-    else:
-        where = " WHERE cid = {id} AND gid = {id}"
-
-    sql = f"""SELECT cid,geom::json FROM public.regions_simple WHERE cid = {id} AND gid = 4"""
-    #sql2 =  conn.queryOne(sql)
-    features = []
-    with DatabaseCursor("config.json") as cur:
-        cur.execute(sql)
-        sql3= cur.fetchall()
-    features.append(sql3)
-    feature_collection = FeatureCollection(features)
-    # ufos = gpd.GeoDataFrame.from_postgis(sql3, conn , geom_col="geom")
-    # ufos.crs = "EPSG:4326"
-    # res =  ufos.__geo_interface__
-    
-    #print(res['data'][:2])
-    # with open('zzz2.json','w') as f:
-    #     json.dumps(res['data'],indent=4)
-
-    fc = {
-        "type": "FeatureCollection",
-        "features": []
-    }
-    feature = {
-      "type": "Feature",
-      "properties": {},
-      "geometry": {
-        "type": None
-      }
-    }
-
 
 @app.get("/radar_sweep")
 def radar_sweep():
