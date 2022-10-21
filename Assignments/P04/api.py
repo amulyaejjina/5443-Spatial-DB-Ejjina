@@ -549,6 +549,8 @@ def missileInfo(name: str):
 def quit():
     global taken
     taken = []
+    global participants
+    participants = {}
     return {'finished':'game has reset'}
 
 """
