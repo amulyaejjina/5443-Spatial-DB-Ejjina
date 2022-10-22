@@ -315,20 +315,24 @@ class MissileServer(object):
             cityList = participants[eachDefender].cities # has to check o/p format
             targetCity = random.choices(cityList)
             dir = random.choice(directions)
-            startLoc = self.randomStartPoint(dir)
 
             # Store in DB only if ST_Distance result qualifies our global variable value
+            # keep repearing till we find one such startpoint
             with DatabaseCursor("config.json") as cur:
-                # Use ST_Distance to check distance btw target and start point
-                query1 = f"""SELECT ST_Distance(
-            'SRID=4326;POINT(startLoc)'::geometry,
-            'SRID=4326;POINT(targetCity)'::geometry );"""
-                cur.execute(query1)
-                distance = cur.fetchall()
-                if distance > MIN_DISTANCE_BTW_STARTLOC_TARGET:
-                    query2 = f"""INSERT QUERY TO MISSILE TABLE"""
-                    cur.execute(query2)
-                    result = cur.fetchall()
+                while True:
+                    startLoc = self.randomStartPoint(dir)
+                    # Use ST_Distance to check distance btw target and start point
+                    query1 = f"""SELECT ST_Distance(
+                'SRID=4326;POINT(startLoc)'::geometry,
+                'SRID=4326;POINT(targetCity)'::geometry );"""
+                    cur.execute(query1)
+                    distance = cur.fetchall()
+                    if distance > MIN_DISTANCE_BTW_STARTLOC_TARGET:
+                        query2 = f"""INSERT QUERY TO MISSILE TABLE"""
+                        cur.execute(query2)
+                        result = cur.fetchall()
+                        break
+
 
     def randomStartPoint(side):
         """Generates a random lon/lat on a predefined bounding box."""
