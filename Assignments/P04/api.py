@@ -11,7 +11,6 @@ from math import radians, degrees, cos, sin, asin, sqrt, pow, atan2
 import time
 from threading import Thread
 from datetime import datetime
-
 from globals import *
 
 """
@@ -30,8 +29,6 @@ Also the instance of `app` below description has info that gets displayed as wel
 # ## 🚀Missile Command🚀
 # ### But Not Really
 # """
-
-
 # This is the `app` instance which passes in a series of keyword arguments
 # configuring this instance of the api. The URL's are obviously fake.
 app = FastAPI(
@@ -197,94 +194,6 @@ conn = DBQuery(".config.json")
 #     return {"time": time, "rate": altitude / time}
 
 
-def dsba(pos1, pos2):
-    """
-    Params:
-        pos1 (Position) : lon,lat,altitude,time
-        pos2 (Position) : lon,lat,altitude,time
-    Returns:
-        distance: in meters
-        speed: in meters per second
-        bearing: degrees where 90=east and 270=west
-        dropRate: where I calculate the drop rate of the missile
-    """
-
-    bearing = compass_bearing(pos1, pos2)
-    distance = haversineDistance(pos1.lon,pos1.lat,pos2.lon,pos2.lat,"meters")
-    timeDiff = abs(pos1.time-pos2.time)
-    altDiff = pos1.altitude-pos2.altitude
-    speed = distance * timeDiff
-    dropRate = altDiff / timeDiff
-
-    d = round(distance,2)
-    s = round(speed,2)
-    b = round(bearing,2)
-    a = round(dropRate,2)
-    return {"distance":d,"speed":s,"bearing":b,"dropRate":a}
-
-
-def haversineDistance(lon1, lat1, lon2, lat2, units="meters"):
-    """Calculate the great circle distance in kilometers between two points on the earth (start and end) where each point
-        is specified in decimal degrees.
-    Params:
-        lon1  (float)  : decimel degrees longitude of start (x value)
-        lat1  (float)  : decimel degrees latitude of start (y value)
-        lon2  (float)  : decimel degrees longitude of end (x value)
-        lat3  (float)  : decimel degrees latitude of end (y value)
-        units (string) : miles or km depending on what you want the answer to be in
-    Returns:
-        distance (float) : distance in whichever units chosen
-    """
-    radius = {"km": 6371, "miles": 3956,"meters": 6371000,"feet":20887680}
-
-    # convert decimal degrees to radians
-    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
-
-    # haversine formula
-    dlon = lon2 - lon1
-    dlat = lat2 - lat1
-    a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
-    c = 2 * asin(sqrt(a))
-    r = radius[units]  # choose miles or km for results
-
-    return c * r
-
-
-def compass_bearing(PositionA, PositionB):
-    """Calculates the bearing between two points.
-        The formulae used is the following:
-            θ = atan2(sin(Δlong).cos(lat2),cos(lat1).sin(lat2) − sin(lat1).cos(lat2).cos(Δlong))
-    Source:
-        https://gist.github.com/jeromer/2005586
-    Params:
-        pointA  : The tuple representing the latitude/longitude for the first point. Latitude and longitude must be in decimal degrees
-        pointB  : The tuple representing the latitude/longitude for the second point. Latitude and longitude must be in decimal degrees
-    Returns:
-        (float) : The bearing in degrees
-    """
-
-    if not isinstance(PositionA, Position) or not isinstance(PositionB, Position):
-        raise TypeError("Only tuples are supported as arguments")
-
-    lat1 = radians(PositionA.lat)
-    lat2 = radians(PositionB.lat)
-
-    diffLong = radians(PositionB.lon - PositionA.lon)
-
-    x = sin(diffLong) * cos(lat2)
-    y = cos(lat1) * sin(lat2) - (sin(lat1) * cos(lat2) * cos(diffLong))
-
-    initial_bearing = atan2(x, y)
-
-    # Now we have the initial bearing but math.atan2 return values
-    # from -180° to + 180° which is not what we want for a compass bearing
-    # The solution is to normalize the initial bearing as shown below
-    initial_bearing = degrees(initial_bearing)
-    compass_bearing = (initial_bearing + 360) % 360
-
-    return compass_bearing
-
-
 class Position(object):
     def __init__(self, **kwargs):
         self.lon = kwargs.get("lon", 0.0)
@@ -316,81 +225,6 @@ class MissileInfo(object):
     @staticmethod
     def speed(id):
         return missile_data["blasts"][id]
-
-def getArsenal(id):
-    """ Returns a missile arsenal randomly generated weighted to 
-        give more slower weaker missiles that fast and strong.
-    Params:
-        id : id of the team 
-        total (int) : total number of missiles to be issued
-    """
-    #TODO : do something here
-    total = 100
-    names = list(missile_data["missiles"].keys())
-
-    missiles = []
-
-
-    i = len(names)*2
-    for name in sorted(names):
-        print(name,i)
-        missiles.extend([name] * i)
-        print(len(missiles))
-        i -= 2
-
-    random.shuffle(missiles)
-
-    missileCount = {}
-
-    sum = 0
-    for name in names:
-        missileCount[name] = missiles[:total].count(name)
-        
-        if missileCount[name] == 0:
-            missileCount[name] += 1
-            missileCount["Atlas"] -= 1
-
-        sum += missileCount[name] 
-        
-    missileCount['total'] = sum
-    return missileCount
-
-    return feature_collection
-def get_region(id:int):
-    if id < 0:
-        where = " "
-    else:
-        where = " WHERE cid = {id} AND gid = {id}"
-
-    sql = f"""SELECT newgeom::json FROM public.regions_simple WHERE cid = {id} AND gid = 6"""
-    
-    features = []
-    with DatabaseCursor("config.json") as cur:
-        cur.execute(sql)
-        sql3= cur.fetchall()
-
-    features.append(sql3)
-    feature_collection = FeatureCollection(sql3)
-    # ufos = gpd.GeoDataFrame.from_postgis(sql3, conn , geom_col="geom")
-    # ufos.crs = "EPSG:4326"
-    # res =  ufos.__geo_interface__
-    
-    #print(res['data'][:2])
-    # with open('zzz2.json','w') as f:
-    #     json.dumps(res['data'],indent=4)
-
-    fc = {
-        "type": "FeatureCollection",
-        "features": feature_collection
-    }
-    feature = {
-      "type": "Feature",
-      "properties": {},
-      "geometry": {
-        "type": None
-      }
-    }
-    return fc
 
 class Participant:
     def __init__(self, id):
@@ -432,9 +266,7 @@ class Participant:
 
     def assign_arsenal(self):
         return getArsenal(self.id)
-
     
-
 class MissileServer(object):
     def __init__(self):
         #assigning the function to variable, so wheever someone calls 
@@ -457,15 +289,65 @@ class MissileServer(object):
                 print(e)
                 print("\n===============================================================\n")
             
-            sleep(MISSILE_GEN_INTERVAL)
+            time.sleep(MISSILE_GEN_INTERVAL)
     
-    def crete_missiles(self):
-        # for every region, randomly chose a city
-            # and chose an initial point such that distance from target is over threshold
-            # (get that threshold from globals)
-            # chose a missile
-            # write to db
-        pass
+    def create_missiles(self):
+        ''' for every region, randomly chose a city
+            and chose an initial point such that distance from target is over threshold
+            (get that threshold from globals)
+            chose a missile
+            write to db
+        '''
+        # Bounding box geometry is stored in 'regions_simple' table with gid-10 and cid =10
+        # (we are only using gid = 6 for region assignment since we have 6 teams)
+        
+        # The below will extract boundary and returns it
+        # with DatabaseCursor("config.json") as cur:
+        #     result = f"""SELECT ST_AsText(ST_Boundary(newgeom)) AS boundaryOfUSA FROM public.regions_simple where gid=10 AND cid=10"""
+        #     cur.execute(result)
+        #     getBoundary = cur.fetchall()
+        #     # getBondary will return the US bbox's boundary in LINESTRING format
+        #     return getBoundary
+
+        # Loop for 6 iterations (this loop has to run every MISSILE_GEN_INTERVAL)
+        directions = ["East","West","North","South"]
+        for eachDefender in participants.keys():
+            cityList = participants[eachDefender].cities # has to check o/p format
+            targetCity = random.choices(cityList)
+            dir = random.choice(directions)
+            startLoc = self.randomStartPoint(dir)
+
+            # Store in DB only if ST_Distance result qualifies our global variable value
+            with DatabaseCursor("config.json") as cur:
+                # Use ST_Distance to check distance btw target and start point
+                query1 = f"""SELECT ST_Distance(
+            'SRID=4326;POINT(startLoc)'::geometry,
+            'SRID=4326;POINT(targetCity)'::geometry );"""
+                cur.execute(query1)
+                distance = cur.fetchall()
+                if distance > MIN_DISTANCE_BTW_STARTLOC_TARGET:
+                    query2 = f"""INSERT QUERY TO MISSILE TABLE"""
+                    cur.execute(query2)
+                    result = cur.fetchall()
+
+    def randomStartPoint(side):
+        """Generates a random lon/lat on a predefined bounding box."""
+        top = 54.3457868
+        left = -129.7844079
+        right = -61.9513812
+        bottom = 19.7433195
+
+        xRange = abs(left) - abs(right)
+        yRange = abs(top) - abs(bottom)
+        
+        if side in "North":
+            return [-random.random() * xRange, top]
+        if side in "South":
+            return [-random.random() * xRange, bottom]
+        if side in "East":
+            return [right, random.random() * yRange]
+        if side in "West":
+            return [left, random.random() * yRange]
 
     def check_deactivated_missiles(self):
         # run a query to get all missiles that have predicted hit time < current clock time
@@ -495,6 +377,167 @@ class MissileServer(object):
         participants[id] = Participant(id)
         return participants[id].__dict__
 
+def dsba(pos1, pos2):
+    """
+    Params:
+        pos1 (Position) : lon,lat,altitude,time
+        pos2 (Position) : lon,lat,altitude,time
+    Returns:
+        distance: in meters
+        speed: in meters per second
+        bearing: degrees where 90=east and 270=west
+        dropRate: where I calculate the drop rate of the missile
+    """
+
+    bearing = compass_bearing(pos1, pos2)
+    distance = haversineDistance(pos1.lon,pos1.lat,pos2.lon,pos2.lat,"meters")
+    timeDiff = abs(pos1.time-pos2.time)
+    altDiff = pos1.altitude-pos2.altitude
+    speed = distance * timeDiff
+    dropRate = altDiff / timeDiff
+
+    d = round(distance,2)
+    s = round(speed,2)
+    b = round(bearing,2)
+    a = round(dropRate,2)
+    return {"distance":d,"speed":s,"bearing":b,"dropRate":a}
+
+def haversineDistance(lon1, lat1, lon2, lat2, units="meters"):
+    """Calculate the great circle distance in kilometers between two points on the earth (start and end) where each point
+        is specified in decimal degrees.
+    Params:
+        lon1  (float)  : decimel degrees longitude of start (x value)
+        lat1  (float)  : decimel degrees latitude of start (y value)
+        lon2  (float)  : decimel degrees longitude of end (x value)
+        lat3  (float)  : decimel degrees latitude of end (y value)
+        units (string) : miles or km depending on what you want the answer to be in
+    Returns:
+        distance (float) : distance in whichever units chosen
+    """
+    radius = {"km": 6371, "miles": 3956,"meters": 6371000,"feet":20887680}
+
+    # convert decimal degrees to radians
+    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+
+    # haversine formula
+    dlon = lon2 - lon1
+    dlat = lat2 - lat1
+    a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
+    c = 2 * asin(sqrt(a))
+    r = radius[units]  # choose miles or km for results
+
+    return c * r
+
+def compass_bearing(PositionA, PositionB):
+    """Calculates the bearing between two points.
+        The formulae used is the following:
+            θ = atan2(sin(Δlong).cos(lat2),cos(lat1).sin(lat2) − sin(lat1).cos(lat2).cos(Δlong))
+    Source:
+        https://gist.github.com/jeromer/2005586
+    Params:
+        pointA  : The tuple representing the latitude/longitude for the first point. Latitude and longitude must be in decimal degrees
+        pointB  : The tuple representing the latitude/longitude for the second point. Latitude and longitude must be in decimal degrees
+    Returns:
+        (float) : The bearing in degrees
+    """
+
+    if not isinstance(PositionA, Position) or not isinstance(PositionB, Position):
+        raise TypeError("Only tuples are supported as arguments")
+
+    lat1 = radians(PositionA.lat)
+    lat2 = radians(PositionB.lat)
+
+    diffLong = radians(PositionB.lon - PositionA.lon)
+
+    x = sin(diffLong) * cos(lat2)
+    y = cos(lat1) * sin(lat2) - (sin(lat1) * cos(lat2) * cos(diffLong))
+
+    initial_bearing = atan2(x, y)
+
+    # Now we have the initial bearing but math.atan2 return values
+    # from -180° to + 180° which is not what we want for a compass bearing
+    # The solution is to normalize the initial bearing as shown below
+    initial_bearing = degrees(initial_bearing)
+    compass_bearing = (initial_bearing + 360) % 360
+
+    return compass_bearing
+
+def getArsenal(id):
+    """ Returns a missile arsenal randomly generated weighted to 
+        give more slower weaker missiles that fast and strong.
+    Params:
+        id : id of the team 
+        total (int) : total number of missiles to be issued
+    """
+    #TODO : do something here
+    total = 100
+    names = list(missile_data["missiles"].keys())
+
+    missiles = []
+
+
+    i = len(names)*2
+    for name in sorted(names):
+        print(name,i)
+        missiles.extend([name] * i)
+        print(len(missiles))
+        i -= 2
+
+    random.shuffle(missiles)
+
+    missileCount = {}
+
+    sum = 0
+    for name in names:
+        missileCount[name] = missiles[:total].count(name)
+        
+        if missileCount[name] == 0:
+            missileCount[name] += 1
+            missileCount["Atlas"] -= 1
+
+        sum += missileCount[name] 
+        
+    missileCount['total'] = sum
+    return missileCount
+
+    return feature_collection
+
+def get_region(id:int):
+    if id < 0:
+        where = " "
+    else:
+        where = " WHERE cid = {id} AND gid = {id}"
+
+    sql = f"""SELECT newgeom::json FROM public.regions_simple WHERE cid = {id} AND gid = 6"""
+    
+    features = []
+    with DatabaseCursor("config.json") as cur:
+        cur.execute(sql)
+        sql3= cur.fetchall()
+
+    features.append(sql3)
+    feature_collection = FeatureCollection(sql3)
+    # ufos = gpd.GeoDataFrame.from_postgis(sql3, conn , geom_col="geom")
+    # ufos.crs = "EPSG:4326"
+    # res =  ufos.__geo_interface__
+    
+    #print(res['data'][:2])
+    # with open('zzz2.json','w') as f:
+    #     json.dumps(res['data'],indent=4)
+
+    fc = {
+        "type": "FeatureCollection",
+        "features": feature_collection
+    }
+    feature = {
+      "type": "Feature",
+      "properties": {},
+      "geometry": {
+        "type": None
+      }
+    }
+    return fc
+
 def nextLocation(lon: float, lat: float, speed: float, bearing: float, time:int=1, geojson: int=0):
     """
     lon (float) : x coordinate
@@ -522,30 +565,6 @@ def nextLocation(lon: float, lat: float, speed: float, bearing: float, time:int=
 
     return conn.queryOne(sql)
 
-"""
-  _____   ____  _    _ _______ ______  _____
- |  __ \ / __ \| |  | |__   __|  ____|/ ____|
- | |__) | |  | | |  | |  | |  | |__  | (___
- |  _  /| |  | | |  | |  | |  |  __|  \___ \
- | | \ \| |__| | |__| |  | |  | |____ ____) |
- |_|  \_\\____/ \____/   |_|  |______|_____/
-
- This is where your routes will be defined. Remember they are really just python functions
- that will talk to whatever class you write above. Fast Api simply takes your python results
- and packagres them so they can be sent back to your programs request.
-"""
-
-
-@app.get("/")
-async def docs_redirect():
-    """Api's base route that displays the information created above in the ApiInfo section."""
-    return RedirectResponse(url="/docs")
-
-@app.get("/get_clock")
-def get_time():
-    return {"time" : str(missileserver.clock())}
-
-@app.get("/missile_path")
 def missilePath(d: str = None, buffer: float = 0):
     bbox = {
         "l": -124.7844079,  # left
@@ -579,8 +598,32 @@ def missilePath(d: str = None, buffer: float = 0):
 
     return [start, end]
 
+
+"""
+  _____   ____  _    _ _______ ______  _____
+ |  __ \ / __ \| |  | |__   __|  ____|/ ____|
+ | |__) | |  | | |  | |  | |  | |__  | (___
+ |  _  /| |  | | |  | |  | |  |  __|  \___ \
+ | | \ \| |__| | |__| |  | |  | |____ ____) |
+ |_|  \_\\____/ \____/   |_|  |______|_____/
+
+ This is where your routes will be defined. Remember they are really just python functions
+ that will talk to whatever class you write above. Fast Api simply takes your python results
+ and packagres them so they can be sent back to your programs request.
+"""
+
+
+@app.get("/")
+async def docs_redirect():
+    """Api's base route that displays the information created above in the ApiInfo section."""
+    return RedirectResponse(url="/docs")
+
+@app.get("/START/{teamID}")
+def start(teamID):
+    pass
+
 taken = []
-@app.get("/register")
+@app.get("/REGISTER")
 def register_user():
     global taken
     # write a logic to find a unique id
@@ -594,21 +637,24 @@ def register_user():
     else:    
         return {'Error': 'No more regions available'}
 
-
-@app.get("/radar_sweep")
+@app.get("/RADAR_SWEEP")
 def radar_sweep():
     return missileserver.radar_sweep()
 
-@app.get("/missileInfo")
+#@app.get("/missileInfo")
 def missileInfo(name: str):
     return MissileInfo.missile(name)
 
-@app.get("/fire_solution/<solution_dict>")
-def receive_solution():
+@app.get("/FIRE_SOLUTION/{solution_dict}")
+def receive_solution(solution_dict):
     return missileserver.fired_solutions(solution_dict)
 
-@app.get("/quit")
-def quit():
+@app.get("/GET_CLOCK")
+def get_time():
+    return {"time" : str(missileserver.clock())}
+
+@app.get("/QUIT/{teamID}")
+def quit(teamID):
     global taken
     taken = []
     global participants
