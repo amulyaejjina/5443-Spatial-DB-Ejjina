@@ -8,6 +8,11 @@ import random
 import geopandas as gpd
 from geojson import Point, Feature, FeatureCollection, dump
 from math import radians, degrees, cos, sin, asin, sqrt, pow, atan2
+import time
+from threading import Thread
+from datetime import datetime
+
+from globals import *
 
 """
            _____ _____   _____ _   _ ______ ____
@@ -432,7 +437,59 @@ class Participant:
 
 class MissileServer(object):
     def __init__(self):
+        #assigning the function to variable, so wheever someone calls 
+        #missile server's clock , they get the system time
+        self.clock = datetime.now
+        self.backend_main_thread = Thread(target = self.main_thread)
+        #start the backend_main_thread
+        self.backend_main_thread.start()
+
+    def main_thread(self):
+        while True:
+            try:
+                # create missiles and place in db
+                self.create_missiles()
+                # check if any missile hit happened by now using clock
+                self.check_deactivated_missiles()
+                # increment clock - not needed as we are using system clock
+            except Exception as e:
+                print("\n================ backend main thread exception ================\n")
+                print(e)
+                print("\n===============================================================\n")
+            
+            sleep(MISSILE_GEN_INTERVAL)
+    
+    def crete_missiles(self):
+        # for every region, randomly chose a city
+            # and chose an initial point such that distance from target is over threshold
+            # (get that threshold from globals)
+            # chose a missile
+            # write to db
         pass
+
+    def check_deactivated_missiles(self):
+        # run a query to get all missiles that have predicted hit time < current clock time
+        # update their status to de-activated
+        pass
+
+    def radar_sweep(self):
+        # run query to get all missiles where active is true and return
+        # return in json format
+        pass
+    
+    def fired_solutions(self, solution_data):
+        curr_time = self.clock()
+        # read in the team id, missile type, targeted missile id , start location , fired direction and start time
+        # get targetted missile data from table using targetted missile id from above
+        # calculate intersection point using postgis api
+        # calculate the time taken by our missile to reach there (time_taken)
+        # calculate their missile's location by that time (by curr_time + time_taken)
+        # if the difference between this location and the intersection point is less than blast radius,
+            #  update our missile table with blast_time = curr_time + time_taken 
+        # else:
+            # dont update anything, or maintain a separate table for failed missiles if we want to send a notification after some time.
+
+        # decrement the missile based on missile_type from team_id's arsenal
 
     def registerDefender(self, id):
         participants[id] = Participant(id)
@@ -484,6 +541,9 @@ async def docs_redirect():
     """Api's base route that displays the information created above in the ApiInfo section."""
     return RedirectResponse(url="/docs")
 
+@app.get("/get_clock")
+def get_time():
+    return {"time" : str(missileserver.clock())}
 
 @app.get("/missile_path")
 def missilePath(d: str = None, buffer: float = 0):
@@ -523,27 +583,29 @@ taken = []
 @app.get("/register")
 def register_user():
     global taken
-    server = MissileServer()
     # write a logic to find a unique id
     if(len(taken) < 6):
         id = random.randint(0, 5)
         while id in participants.keys():
             id = random.randint(0, 5)
         taken.append(id)
-        return server.registerDefender(id)
+        return missileserver.registerDefender(id)
 
     else:    
         return {'Error': 'No more regions available'}
-    
+
 
 @app.get("/radar_sweep")
 def radar_sweep():
-    pass
-
+    return missileserver.radar_sweep()
 
 @app.get("/missileInfo")
 def missileInfo(name: str):
     return MissileInfo.missile(name)
+
+@app.get("/fire_solution/<solution_dict>")
+def receive_solution():
+    return missileserver.fired_solutions(solution_dict)
 
 @app.get("/quit")
 def quit():
