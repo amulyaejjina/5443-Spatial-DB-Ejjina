@@ -242,7 +242,11 @@ class Participant:
             geom = f"""SELECT newgeom from public.regions_simple WHERE cid = {self.id} AND gid = 6"""
             cur.execute(geom)
             region = cur.fetchall()[0][0]
-           
+            # query = f"""SELECT json_build_object(
+            # 'type', 'FeatureCollection',
+            # 'features', json_agg(ST_AsGeoJSON(t.*)::json)
+            # )
+            # FROM public."missileData" t WHERE t.cid = {self.id} AND gid = 6;"""
             sql = f"""SELECT ST_AsGeoJSON(ST_Transform(location, 4326),15,0)::json As geometry FROM public.cities WHERE ST_INTERSECTS(location, '{region}');"""
 
             cur.execute(sql)
@@ -322,17 +326,19 @@ class MissileServer(object):
                 while True:
                     startLoc = self.randomStartPoint(dir)
                     # Use ST_Distance to check distance btw target and start point
+                    print(f"""{startLoc[0]} {startLoc[1]}""")
+                    print(f"""{targetCity[0][0]['coordinates'][0]} {targetCity[0][0]['coordinates'][1]}""")
                     query1 = f"""SELECT ST_Distance(
-                'SRID=4326;POINT(startLoc)'::geometry,
-                'SRID=4326;POINT(targetCity)'::geometry );"""
+                        'SRID=4326;POINT({startLoc[0]} {startLoc[1]})'::geometry,
+                        'SRID=4326;POINT({targetCity[0][0]['coordinates'][0]} {targetCity[0][0]['coordinates'][1]})'::geometry);"""
                     cur.execute(query1)
-                    distance = cur.fetchall()
+                    distance = cur.fetchall()[0][0]
                     if distance > MIN_DISTANCE_BTW_STARTLOC_TARGET:
                         query2 = f"""INSERT QUERY TO MISSILE TABLE"""
                         cur.execute(query2)
                         result = cur.fetchall()
                         break
-
+                    
 
     def randomStartPoint(self, side):
         """Generates a random lon/lat on a predefined bounding box."""
@@ -361,17 +367,18 @@ class MissileServer(object):
     def radar_sweep(self):
         with DatabaseCursor("config.json") as cur:
             # run query to get all missiles where active is true and return
-            query = f"""SELECT missile_id, "current_time", current_loc, 
-            start_time, start_loc, speed, altitude FROM public."missileData"; """
+            query = f"""SELECT json_build_object(
+            'type', 'FeatureCollection',
+            'features', json_agg(ST_AsGeoJSON(t.*)::json)
+            )
+            FROM public."missileData"
+            as t(id, current_loc, "current_time", start_loc, start_time, speed, altitude );"""
             #Get column names of the missile data
             cur.execute(query)
-            cols = [desc[0] for desc in cur.description]
-
             missiles = cur.fetchall()
 
             #Show column name along with the missile's values if we have missile to show
-            if(missiles != []):
-                missiles = [zip(cols, missiles[i]) for i in range(len(missiles))]
+            if(missiles[0][0]['features'] != None):
                 return missiles
             else:
                 return {"N/A" : "No missiles are flying over the USA at this time"}
