@@ -366,18 +366,21 @@ class MissileServer(object):
     def radar_sweep(self):
         with DatabaseCursor("config.json") as cur:
             # run query to get all missiles where active is true and return
+            #Need to fix the key names for properties
             query = f"""SELECT json_build_object(
             'type', 'FeatureCollection',
-            'features', json_agg(ST_AsGeoJSON(t.*)::json)
+            'features', json_agg(ST_AsGeoJSON((t.missile_id, t.current_loc, t."current_time",
+            t.start_time, t.start_loc, t.speed, t.altitude))::json)
             )
             FROM public."missileData"
-            as t(id, current_loc, "current_time", start_loc, start_time, speed, altitude );"""
+            as t(missile_id, current_loc, "current_time", target_id, target_city, start_time,
+            start_loc, speed, altitude, status) WHERE t.status = True;"""
             #Get column names of the missile data
             cur.execute(query)
-            missiles = cur.fetchall()
+            missiles = cur.fetchall()[0][0]
 
             #Show column name along with the missile's values if we have missile to show
-            if(missiles[0][0]['features'] != None):
+            if(missiles['features'] != None):
                 return missiles
             else:
                 return {"N/A" : "No missiles are flying over the USA at this time"}
@@ -526,7 +529,6 @@ def getArsenal(id):
     return feature_collection
 
 def get_region(id:int):
-    #sql = f"""SELECT newgeom::json FROM public.regions_simple WHERE cid = {id} AND gid = 6"""
     sql = f"""SELECT json_build_object(
             'type', 'FeatureCollection',
             'features', json_agg(ST_AsGeoJSON(t.*)::json)
@@ -539,31 +541,6 @@ def get_region(id:int):
         return sql3
 
     
-
-
-    #features.append(sql3)
-    #feature_collection = FeatureCollection(sql3)
-    # ufos = gpd.GeoDataFrame.from_postgis(sql3, conn , geom_col="geom")
-    # ufos.crs = "EPSG:4326"
-    # res =  ufos.__geo_interface__
-    
-    #print(res['data'][:2])
-    # with open('zzz2.json','w') as f:
-    #     json.dumps(res['data'],indent=4)
-
-    # fc = {
-    #     "type": "FeatureCollection",
-    #     "features": feature_collection
-    # }
-    # feature = {
-    #   "type": "Feature",
-    #   "properties": {},
-    #   "geometry": {
-    #     "type": None
-    #   }
-    # }
-    #return fc
-
 def nextLocation(lon: float, lat: float, speed: float, bearing: float, time:int=1, geojson: int=0):
     """
     lon (float) : x coordinate
