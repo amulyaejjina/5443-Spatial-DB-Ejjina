@@ -242,15 +242,14 @@ class Participant:
             geom = f"""SELECT newgeom from public.regions_simple WHERE cid = {self.id} AND gid = 6"""
             cur.execute(geom)
             region = cur.fetchall()[0][0]
-            # query = f"""SELECT json_build_object(
-            # 'type', 'FeatureCollection',
-            # 'features', json_agg(ST_AsGeoJSON(t.*)::json)
-            # )
-            # FROM public."missileData" t WHERE t.cid = {self.id} AND gid = 6;"""
-            sql = f"""SELECT ST_AsGeoJSON(ST_Transform(location, 4326),15,0)::json As geometry FROM public.cities WHERE ST_INTERSECTS(location, '{region}');"""
+            sql = f"""SELECT json_build_object(
+            'type', 'FeatureCollection',
+            'features', json_agg(ST_AsGeoJSON(t.*)::json)
+            )
+            FROM public.cities as t(id, latitude, longitude, location) WHERE ST_INTERSECTS(location, '{region}');"""
 
             cur.execute(sql)
-            sql3= cur.fetchall()
+            sql3= cur.fetchall()[0][0]
             # features = []
             # features.append(sql3)
             # feature_collection = FeatureCollection(sql3)
@@ -527,20 +526,23 @@ def getArsenal(id):
     return feature_collection
 
 def get_region(id:int):
-    if id < 0:
-        where = " "
-    else:
-        where = " WHERE cid = {id} AND gid = {id}"
-
-    sql = f"""SELECT newgeom::json FROM public.regions_simple WHERE cid = {id} AND gid = 6"""
-    
+    #sql = f"""SELECT newgeom::json FROM public.regions_simple WHERE cid = {id} AND gid = 6"""
+    sql = f"""SELECT json_build_object(
+            'type', 'FeatureCollection',
+            'features', json_agg(ST_AsGeoJSON(t.*)::json)
+            )
+            FROM public.regions_simple as t(gid, cid, newgeom) WHERE t.cid = {id} AND t.gid = 6;"""
     features = []
     with DatabaseCursor("config.json") as cur:
         cur.execute(sql)
-        sql3= cur.fetchall()
+        sql3= cur.fetchall()[0][0]
+        return sql3
 
-    features.append(sql3)
-    feature_collection = FeatureCollection(sql3)
+    
+
+
+    #features.append(sql3)
+    #feature_collection = FeatureCollection(sql3)
     # ufos = gpd.GeoDataFrame.from_postgis(sql3, conn , geom_col="geom")
     # ufos.crs = "EPSG:4326"
     # res =  ufos.__geo_interface__
@@ -549,18 +551,18 @@ def get_region(id:int):
     # with open('zzz2.json','w') as f:
     #     json.dumps(res['data'],indent=4)
 
-    fc = {
-        "type": "FeatureCollection",
-        "features": feature_collection
-    }
-    feature = {
-      "type": "Feature",
-      "properties": {},
-      "geometry": {
-        "type": None
-      }
-    }
-    return fc
+    # fc = {
+    #     "type": "FeatureCollection",
+    #     "features": feature_collection
+    # }
+    # feature = {
+    #   "type": "Feature",
+    #   "properties": {},
+    #   "geometry": {
+    #     "type": None
+    #   }
+    # }
+    #return fc
 
 def nextLocation(lon: float, lat: float, speed: float, bearing: float, time:int=1, geojson: int=0):
     """
