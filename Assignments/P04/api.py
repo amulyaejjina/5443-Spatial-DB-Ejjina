@@ -334,7 +334,7 @@ class MissileServer(object):
                         break
 
 
-    def randomStartPoint(side):
+    def randomStartPoint(self, side):
         """Generates a random lon/lat on a predefined bounding box."""
         top = 54.3457868
         left = -129.7844079
@@ -359,9 +359,22 @@ class MissileServer(object):
         pass
 
     def radar_sweep(self):
-        # run query to get all missiles where active is true and return
-        # return in json format
-        pass
+        with DatabaseCursor("config.json") as cur:
+            # run query to get all missiles where active is true and return
+            query = f"""SELECT missile_id, "current_time", current_loc, 
+            start_time, start_loc, speed, altitude FROM public."missileData"; """
+            #Get column names of the missile data
+            cur.execute(query)
+            cols = [desc[0] for desc in cur.description]
+
+            missiles = cur.fetchall()
+
+            #Show column name along with the missile's values if we have missile to show
+            if(missiles != []):
+                missiles = [zip(cols, missiles[i]) for i in range(len(missiles))]
+                return missiles
+            else:
+                return {"N/A" : "No missiles are flying over the USA at this time"}
     
     def fired_solutions(self, solution_data):
         curr_time = self.clock()
@@ -615,7 +628,8 @@ def missilePath(d: str = None, buffer: float = 0):
  that will talk to whatever class you write above. Fast Api simply takes your python results
  and packagres them so they can be sent back to your programs request.
 """
-
+#this is needed here because I get errors when making it an instance in main --Ally
+missileserver = MissileServer()
 
 @app.get("/")
 async def docs_redirect():
@@ -626,16 +640,13 @@ async def docs_redirect():
 def start(teamID):
     pass
 
-taken = []
 @app.get("/REGISTER")
 def register_user():
-    global taken
     # write a logic to find a unique id
-    if(len(taken) < 6):
+    if(len(participants) < 6):
         id = random.randint(0, 5)
         while id in participants.keys():
             id = random.randint(0, 5)
-        taken.append(id)
         return missileserver.registerDefender(id)
 
     else:    
@@ -659,8 +670,6 @@ def get_time():
 
 @app.get("/QUIT/{teamID}")
 def quit(teamID):
-    global taken
-    taken = []
     global participants
     participants = {}
     return {'finished':'game has reset'}
@@ -681,7 +690,7 @@ Note:
 """
 if __name__ == "__main__":
     #initializing missile server 
-    missileserver = MissileServer()
+    #missileserver = MissileServer()
     uvicorn.run("api:app", host="127.0.0.1", port=8080, log_level="debug", reload=True)
     print(MissileInfo.missile("Patriot"))
 
