@@ -366,15 +366,30 @@ class MissileServer(object):
     def radar_sweep(self):
         with DatabaseCursor("config.json") as cur:
             # run query to get all missiles where active is true and return
-            #Need to fix the key names for properties
-            query = f"""SELECT json_build_object(
-            'type', 'FeatureCollection',
-            'features', json_agg(ST_AsGeoJSON((t.missile_id, t.current_loc, t."current_time",
-            t.start_time, t.start_loc, t.speed, t.altitude))::json)
-            )
-            FROM public."missileData"
-            as t(missile_id, current_loc, "current_time", target_id, target_city, start_time,
-            start_loc, speed, altitude, status) WHERE t.status = True;"""
+            # Need to fix the key names for properties
+
+            # query = f"""SELECT json_build_object(
+            # 'type', 'FeatureCollection',
+            # 'features', json_agg(ST_AsGeoJSON((t.missile_id, t."current_time", t.current_loc,
+            # t.start_time, t.start_loc, t.speed, t.altitude))::json)
+            # )
+            # FROM public.missile_data
+            # as t(missile_id, "current_time", current_loc, target_id, target_city, start_time,
+            # start_loc, speed, altitude, status) WHERE t.status = True;"""
+
+            query = """SELECT jsonb_build_object(
+                        'type',     'FeatureCollection',
+                        'features', jsonb_agg(features.feature)
+                    )
+                    FROM (
+                    SELECT jsonb_build_object(
+                        'type',       'Feature',
+                        'id',         missile_id,
+                        'geometry',   ST_AsGeoJSON(current_loc)::jsonb,
+                        'properties', to_jsonb(inputs) - 'missile_id' - 'current_loc' - 'target_id' - 'target_city' - 'active'
+                    ) AS feature
+                    FROM (SELECT * FROM public.missile_data WHERE active = true) inputs) features;"""
+
             #Get column names of the missile data
             cur.execute(query)
             missiles = cur.fetchall()[0][0]
