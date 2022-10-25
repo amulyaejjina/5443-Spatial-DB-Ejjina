@@ -128,7 +128,7 @@ class DBQuery(object):
 
     def __query(self, sql, qtype=3):
         with DatabaseCursor("config.json") as cur:
-            print(sql)
+            #print(sql)
             cur.execute(sql)
 
             if qtype == 1:
@@ -287,6 +287,8 @@ class MissileServer(object):
             try:
                 # create missiles and place in db
                 self.create_missiles()
+                print('thread pulsed')
+
                 # check if any missile hit happened by now using clock
                 self.check_deactivated_missiles()
                 # increment clock - not needed as we are using system clock
@@ -319,6 +321,7 @@ class MissileServer(object):
         # Loop for 6 iterations (this loop has to run every MISSILE_GEN_INTERVAL)
         directions = ["East","West","North","South"]
         for eachDefender in participants.keys():
+            print('new missile for team', eachDefender)
             cityList = participants[eachDefender].cities['features'] # has to check o/p format
             targetCity = random.choices(cityList)[0]
             direct = random.choice(directions)
@@ -353,7 +356,7 @@ class MissileServer(object):
                         bearing = compass_bearing(startPoint, targetPoint)
                          
                         # have to insert bearing - right now I dont see a column in db
-                        sql = f"""INSERT INTO missile_data VALUES ({self.missile_counter}, '{current_time}', '0105000020E61000000100000001020000001B00000080936DE00E5656C04D2F3196E95B3F40A6CEA3E2FF5556C0CE3637A6275C3F40B81CAF40F45556C0B4E6C75F5A5C3F4026BD6F7CED5556C0CE691668775C3F403CF88903E85556C0D1601A868F5C3F4037A3E6ABE45556C055F487669E5C3F40E6E44526E05556C081919735B15C3F4021C66B5ED55556C0852AFC19DE5C3F40855451BCCA5556C0FF0241800C5D3F409E909DB7B15556C0D2A414747B5D3F40934A7842AF5556C0A62EE065865D3F404B33DDEBA45556C0E33C635FB25D3F40A143E048A05556C03E2AC58EC65D3F4083BC1E4C8A5556C093382BA2265E3F407EFFE6C5895556C08B135FED285E3F40D8648D7A885556C0293BFDA02E5E3F40F597DD93875556C0753C66A0325E3F402B0DFCA8865556C0BD3DCF9F365E3F40569DD5027B5556C0BE49D3A0685E3F40D30CA9A2785556C04B27D9EA725E3F40442FA3586E5556C04389963C9E5E3F402D3883BF5F5556C0A8CC94D6DF5E3F40C398F4F7525556C026E78BBD175F3F40A1D9756F455556C09A1F7F69515F3F40BBB72231415556C03B213B6F635F3F40BB404981055556C040E1B37570603F40B356B439CE5456C02561A6ED5F613F40', 7,
+                        sql = f"""INSERT INTO missile_data VALUES ({self.missile_counter}, '{current_time}', 'SRID=4326;POINT({startLoc_lon} {startLoc_lat})'::geometry, 7,
                          'SRID=4326;POINT({targetCity_lon} {targetCity_lat})'::geometry, '{start_time}',  'SRID=4326;POINT({startLoc_lon} {startLoc_lat})'::geometry, {altitude}, 12, 15, true);"""
                         cur.execute(sql)
                         self.missile_counter += 1
@@ -373,7 +376,7 @@ class MissileServer(object):
             getTable = f"""SELECT * FROM public.missile_data;"""
             cur.execute(getTable)
             missileList = cur.fetchall()
-            print(missileList)
+            #print(missileList)
         ''' for each row,update the required columns -
            1. current location
            2. current time
@@ -397,8 +400,6 @@ class MissileServer(object):
                 ,altitude= {alt - droprate};"""
                 cur.execute(sql)
        
-            
-        
 
     def randomStartPoint(self, side):
         """Generates a random lon/lat on a predefined bounding box."""
@@ -425,20 +426,7 @@ class MissileServer(object):
         pass
 
     def radar_sweep(self):
-        
         with DatabaseCursor("config.json") as cur:
-            # run query to get all missiles where active is true and return
-            # Need to fix the key names for properties
-
-            # query = f"""SELECT json_build_object(
-            # 'type', 'FeatureCollection',
-            # 'features', json_agg(ST_AsGeoJSON((t.missile_id, t."current_time", t.current_loc,
-            # t.start_time, t.start_loc, t.speed, t.altitude))::json)
-            # )
-            # FROM public.missile_data
-            # as t(missile_id, "current_time", current_loc, target_id, target_city, start_time,
-            # start_loc, speed, altitude, status) WHERE t.status = True;"""
-
             query = """SELECT jsonb_build_object(
                         'type',     'FeatureCollection',
                         'features', jsonb_agg(features.feature)
@@ -734,8 +722,26 @@ def get_time():
 
 @app.get("/QUIT/{teamID}")
 def quit(teamID):
+    return {'finished':'your team has quit the game'}
+
+@app.get("/RESET")
+def reset():
+    """
+    DO NOT call this method except for testing purposes. This will delete all missiles currently in the missile_data
+    database and reset the registration assignment for a new game.
+    """
+
     global participants
-    participants = {}
+    participants = {}   #Reset all the regions to allow new participants to obtain a region
+
+    missileserver.missile_counter = 1
+
+    with DatabaseCursor("config.json") as cur:
+
+        #Remove all the rows within the missile_data table
+        sql = f"""DELETE FROM public.missile_data;"""
+        cur.execute(sql)
+
     return {'finished':'game has reset'}
 
 """
@@ -756,10 +762,10 @@ if __name__ == "__main__":
     #initializing missile server 
     #missileserver = MissileServer()
     uvicorn.run("api:app", host="127.0.0.1", port=8080, log_level="debug", reload=True)
-    print(MissileInfo.missile("Patriot"))
+   # print(MissileInfo.missile("Patriot"))
 
     A = Position(lon=-94, lat=35, altitude=13000, time=0)
     B = Position(lon=-112.5, lat=35, altitude=13000, time=1)
     C = Position(lon=-112, lat=35.5, altitude=12980, time=4)
-    print(compass_bearing(B, C))
-    print(dsba(C, B))
+    #print(compass_bearing(B, C))
+    #print(dsba(C, B))
