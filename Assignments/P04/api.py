@@ -635,7 +635,7 @@ def nextLocation(lon: float, lat: float, speed: float, bearing: float, time:int=
         sql = f"""
         WITH 
             Q1 AS (
-                SELECT ST_SetSRID(ST_Project('POINT({lon} {lat})'::geometry, {speed*time}, radians({bearing}))::geometry,43
+                SELECT ST_SetSRID(ST_Project('POINT({lon} {lat})'::geometry, {speed*time}, radians({bearing}))::geometry,4326
                 
                 ) as p2
             )
