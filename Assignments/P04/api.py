@@ -1,3 +1,4 @@
+import math
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -340,17 +341,64 @@ class MissileServer(object):
                     cur.execute(query1)
                     distance = cur.fetchall()[0][0]
 
-                    if distance > 45:
+                    if distance > MIN_DISTANCE_BTW_STARTLOC_TARGET:
                         #added from here
                         now = datetime.now()
                         current_time = now.strftime("%H:%M:%S")
                         start_time = current_time
+                        
+                        altitude = random.randrange(10000,15000,100)
+                        startPoint = Position(lon=startLoc_lon, lat=startLoc_lat, altitude=13000, time=1)
+                        targetPoint = Position(lon=targetCity_lon, lat=targetCity_lat, altitude=0, time=4)
+                        bearing = compass_bearing(startPoint, targetPoint)
+                         
+                        # have to insert bearing - right now I dont see a column in db
                         sql = f"""INSERT INTO missile_data VALUES ({self.missile_counter}, '{current_time}', '0105000020E61000000100000001020000001B00000080936DE00E5656C04D2F3196E95B3F40A6CEA3E2FF5556C0CE3637A6275C3F40B81CAF40F45556C0B4E6C75F5A5C3F4026BD6F7CED5556C0CE691668775C3F403CF88903E85556C0D1601A868F5C3F4037A3E6ABE45556C055F487669E5C3F40E6E44526E05556C081919735B15C3F4021C66B5ED55556C0852AFC19DE5C3F40855451BCCA5556C0FF0241800C5D3F409E909DB7B15556C0D2A414747B5D3F40934A7842AF5556C0A62EE065865D3F404B33DDEBA45556C0E33C635FB25D3F40A143E048A05556C03E2AC58EC65D3F4083BC1E4C8A5556C093382BA2265E3F407EFFE6C5895556C08B135FED285E3F40D8648D7A885556C0293BFDA02E5E3F40F597DD93875556C0753C66A0325E3F402B0DFCA8865556C0BD3DCF9F365E3F40569DD5027B5556C0BE49D3A0685E3F40D30CA9A2785556C04B27D9EA725E3F40442FA3586E5556C04389963C9E5E3F402D3883BF5F5556C0A8CC94D6DF5E3F40C398F4F7525556C026E78BBD175F3F40A1D9756F455556C09A1F7F69515F3F40BBB72231415556C03B213B6F635F3F40BB404981055556C040E1B37570603F40B356B439CE5456C02561A6ED5F613F40', 7,
-                         'SRID=4326;POINT({targetCity_lon} {targetCity_lat})'::geometry, '{start_time}',  'SRID=4326;POINT({startLoc_lon} {startLoc_lat})'::geometry, 10, 12, 15, true);"""
+                         'SRID=4326;POINT({targetCity_lon} {targetCity_lat})'::geometry, '{start_time}',  'SRID=4326;POINT({startLoc_lon} {startLoc_lat})'::geometry, {altitude}, 12, 15, true);"""
                         cur.execute(sql)
                         self.missile_counter += 1
                         break
                     
+    def updateCurrentMissiles(self):
+        '''
+        1. Fetch all rows from missile_data table
+        2. For each row,get current required columns
+        3. Calculations
+        4. Update same row with calculated current values
+        5. Repeat samew for all rows
+        '''
+        # Format of rows fetched fromt table - [(),(),()]
+    
+        with DatabaseCursor("config.json") as cur:
+            getTable = f"""SELECT * FROM public.missile_data;"""
+            cur.execute(getTable)
+            missileList = cur.fetchall()
+            print(missileList)
+        ''' for each row,update the required columns -
+           1. current location
+           2. current time
+           3. altitude'''
+        for eachrow in missileList:
+            # the indexes has to be changed based on updated db cols
+            startlat = eachrow[2]
+            startlon = eachrow[3]
+            speed = eachrow[4]
+            bearing = eachrow[5]
+            droprate = eachrow[6]
+            alt = eachrow[7]
+            # Find next location based on 1 sec time elapsed assumption
+            # returns a point geometry,assuming drop rate  -100m/sec
+            nextPoint = nextLocation(startlon, startlat, speed, bearing)
+            now = datetime.now()
+            current_time = now.strftime("%H:%M:%S")
+            with DatabaseCursor("config.json") as cur:
+                sql = f"""UPDATE public.missile_data
+                SET current_loc = {nextPoint},current_time='{current_time}'
+                ,altitude= {alt - droprate};"""
+                cur.execute(sql)
+       
+            
+        
 
     def randomStartPoint(self, side):
         """Generates a random lon/lat on a predefined bounding box."""
@@ -377,6 +425,7 @@ class MissileServer(object):
         pass
 
     def radar_sweep(self):
+        
         with DatabaseCursor("config.json") as cur:
             # run query to get all missiles where active is true and return
             # Need to fix the key names for properties
@@ -412,7 +461,7 @@ class MissileServer(object):
                 return missiles
             else:
                 return {"N/A" : "No missiles are flying over the USA at this time"}
-    
+        
     def fired_solutions(self, solution_data):
         curr_time = self.clock()
         # read in the team id, missile type, targeted missile id , start location , fired direction and start time
@@ -513,7 +562,8 @@ def compass_bearing(PositionA, PositionB):
     # The solution is to normalize the initial bearing as shown below
     initial_bearing = degrees(initial_bearing)
     compass_bearing = (initial_bearing + 360) % 360
-
+    # convert to radians
+    compass_bearing = compass_bearing  * (math.pi/180)
     return compass_bearing
 
 def getArsenal(id):
@@ -581,20 +631,20 @@ def nextLocation(lon: float, lat: float, speed: float, bearing: float, time:int=
         select = "st_x(p2) as x,st_y(p2) as y"
     else:
         select = "ST_AsGeoJSON(p2)"
-
-    sql = f"""
-    WITH 
-        Q1 AS (
-            SELECT ST_SetSRID(ST_Project('POINT({lon} {lat})'::geometry, {speed*time}, radians({bearing}))::geometry,43
-            
-            ) as p2
-        )
- 
-    SELECT {select}
-    FROM Q1
-    """
-
-    return conn.queryOne(sql)
+    with DatabaseCursor("config.json") as cur:
+        sql = f"""
+        WITH 
+            Q1 AS (
+                SELECT ST_SetSRID(ST_Project('POINT({lon} {lat})'::geometry, {speed*time}, radians({bearing}))::geometry,43
+                
+                ) as p2
+            )
+    
+        SELECT {select}
+        FROM Q1
+        """
+        cur.execute(sql)
+        return cur.fetchall()
 
 def missilePath(d: str = None, buffer: float = 0):
     bbox = {
