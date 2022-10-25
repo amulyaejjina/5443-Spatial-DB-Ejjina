@@ -278,6 +278,8 @@ class MissileServer(object):
         self.backend_main_thread = Thread(target = self.main_thread)
         #start the backend_main_thread
         self.backend_main_thread.start()
+         #counter for missile id
+        self.missile_counter = 1
 
     def main_thread(self):
         while True:
@@ -294,6 +296,7 @@ class MissileServer(object):
             
             time.sleep(MISSILE_GEN_INTERVAL)
     
+   
     def create_missiles(self):
         ''' for every region, randomly chose a city
             and chose an initial point such that distance from target is over threshold
@@ -315,27 +318,37 @@ class MissileServer(object):
         # Loop for 6 iterations (this loop has to run every MISSILE_GEN_INTERVAL)
         directions = ["East","West","North","South"]
         for eachDefender in participants.keys():
-            cityList = participants[eachDefender].cities # has to check o/p format
-            targetCity = random.choices(cityList)
-            dir = random.choice(directions)
+            cityList = participants[eachDefender].cities['features'] # has to check o/p format
+            targetCity = random.choices(cityList)[0]
+            direct = random.choice(directions)
 
-            # Store in DB only if ST_Distance result qualifies our global variable value
+            
             # keep repearing till we find one such startpoint
             with DatabaseCursor("config.json") as cur:
                 while True:
-                    startLoc = self.randomStartPoint(dir)
+                    startLoc = self.randomStartPoint(direct)
+                    startLoc_lon = startLoc[0]
+                    startLoc_lat = startLoc[1]
+
+                    targetCity_lon = targetCity['geometry']['coordinates'][0]
+                    targetCity_lat = targetCity['geometry']['coordinates'][1]
+
                     # Use ST_Distance to check distance btw target and start point
-                    print(f"""{startLoc[0]} {startLoc[1]}""")
-                    print(f"""{targetCity[0][0]['coordinates'][0]} {targetCity[0][0]['coordinates'][1]}""")
                     query1 = f"""SELECT ST_Distance(
-                        'SRID=4326;POINT({startLoc[0]} {startLoc[1]})'::geometry,
-                        'SRID=4326;POINT({targetCity[0][0]['coordinates'][0]} {targetCity[0][0]['coordinates'][1]})'::geometry);"""
+                        'SRID=4326;POINT({startLoc_lon} {startLoc_lat})'::geometry,
+                        'SRID=4326;POINT({targetCity_lon} {targetCity_lat})'::geometry);"""
                     cur.execute(query1)
                     distance = cur.fetchall()[0][0]
-                    if distance > MIN_DISTANCE_BTW_STARTLOC_TARGET:
-                        query2 = f"""INSERT QUERY TO MISSILE TABLE"""
-                        cur.execute(query2)
-                        result = cur.fetchall()
+
+                    if distance > 45:
+                        #added from here
+                        now = datetime.now()
+                        current_time = now.strftime("%H:%M:%S")
+                        start_time = current_time
+                        sql = f"""INSERT INTO missile_data VALUES ({self.missile_counter}, '{current_time}', '0105000020E61000000100000001020000001B00000080936DE00E5656C04D2F3196E95B3F40A6CEA3E2FF5556C0CE3637A6275C3F40B81CAF40F45556C0B4E6C75F5A5C3F4026BD6F7CED5556C0CE691668775C3F403CF88903E85556C0D1601A868F5C3F4037A3E6ABE45556C055F487669E5C3F40E6E44526E05556C081919735B15C3F4021C66B5ED55556C0852AFC19DE5C3F40855451BCCA5556C0FF0241800C5D3F409E909DB7B15556C0D2A414747B5D3F40934A7842AF5556C0A62EE065865D3F404B33DDEBA45556C0E33C635FB25D3F40A143E048A05556C03E2AC58EC65D3F4083BC1E4C8A5556C093382BA2265E3F407EFFE6C5895556C08B135FED285E3F40D8648D7A885556C0293BFDA02E5E3F40F597DD93875556C0753C66A0325E3F402B0DFCA8865556C0BD3DCF9F365E3F40569DD5027B5556C0BE49D3A0685E3F40D30CA9A2785556C04B27D9EA725E3F40442FA3586E5556C04389963C9E5E3F402D3883BF5F5556C0A8CC94D6DF5E3F40C398F4F7525556C026E78BBD175F3F40A1D9756F455556C09A1F7F69515F3F40BBB72231415556C03B213B6F635F3F40BB404981055556C040E1B37570603F40B356B439CE5456C02561A6ED5F613F40', 7,
+                         'SRID=4326;POINT({targetCity_lon} {targetCity_lat})'::geometry, '{start_time}',  'SRID=4326;POINT({startLoc_lon} {startLoc_lat})'::geometry, 10, 12, 15, true);"""
+                        cur.execute(sql)
+                        self.missile_counter += 1
                         break
                     
 
