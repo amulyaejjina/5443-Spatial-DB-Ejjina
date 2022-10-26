@@ -22,3 +22,8 @@ TABLESPACE pg_default;
 
 ALTER TABLE IF EXISTS public.missile_data
     OWNER to postgres;
+
+ALTER TABLE public.missile_data
+ADD bearing real NOT NULL,
+ADD missile_type text NOT NULL;
+

@@ -318,8 +318,7 @@ class MissileServer(object):
             targetCity = random.choices(cityList)[0]
             direct = random.choice(directions)
 
-            
-            # keep repearing till we find one such startpoint
+            # keep repeating till we find one such startpoint
             with DatabaseCursor("config.json") as cur:
                 while True:
                     startLoc = self.randomStartPoint(direct)
@@ -337,19 +336,33 @@ class MissileServer(object):
                     distance = cur.fetchall()[0][0]
 
                     if distance > MIN_DISTANCE_BTW_STARTLOC_TARGET:
-                        #added from here
+                        # Data for INSERTS
                         now = datetime.now()
                         current_time = now.strftime("%H:%M:%S")
                         start_time = current_time
                         
-                        altitude = random.randrange(10000,15000,100)
-                        startPoint = Position(lon=startLoc_lon, lat=startLoc_lat, altitude=13000, time=1)
+                        altitude = random.randrange(10000,15000,300)
+
+                        startPoint = Position(lon=startLoc_lon, lat=startLoc_lat, altitude=altitude, time=1)
                         targetPoint = Position(lon=targetCity_lon, lat=targetCity_lat, altitude=0, time=4)
                         bearing = compass_bearing(startPoint, targetPoint)
-                         
+
+                        listofMissiles = list(missile_data['missiles'].keys())
+                        missileType = random.choices(listofMissiles)
+                        speedinmph = missile_data["speed"][missile_data["missiles"][missileType[0]]["speed"]]['mph']
+
+                        findtargetID = f"""SELECT id FROM public.cities
+                        WHERE longitude = {targetCity_lon} AND latitude = {targetCity_lat};"""
+                        cur.execute(findtargetID)
+                        targetID = cur.fetchall()[0][0]
+
+                        mistype = missileType[0]
                         # have to insert bearing - right now I dont see a column in db
-                        sql = f"""INSERT INTO missile_data VALUES ({self.missile_counter}, '{current_time}', 'SRID=4326;POINT({startLoc_lon} {startLoc_lat})'::geometry, 7,
-                         'SRID=4326;POINT({targetCity_lon} {targetCity_lat})'::geometry, '{start_time}',  'SRID=4326;POINT({startLoc_lon} {startLoc_lat})'::geometry, {altitude}, 12, 15, true);"""
+                        sql = f"""INSERT INTO missile_data VALUES ({self.missile_counter}, '{current_time}',
+                        'SRID=4326;POINT({startLoc_lon} {startLoc_lat})'::geometry, {targetID},
+                        'SRID=4326;POINT({targetCity_lon} {targetCity_lat})'::geometry, '{start_time}',
+                        'SRID=4326;POINT({startLoc_lon} {startLoc_lat})'::geometry, {speedinmph},
+                        {altitude}, 12, true,{bearing},'{mistype}');"""
                         cur.execute(sql)
                         self.missile_counter += 1
                         break
@@ -368,30 +381,40 @@ class MissileServer(object):
             getTable = f"""SELECT * FROM public.missile_data;"""
             cur.execute(getTable)
             missileList = cur.fetchall()
-            #print(missileList)
-        ''' for each row,update the required columns -
-           1. current location
-           2. current time
-           3. altitude'''
-        for eachrow in missileList:
-            # the indexes has to be changed based on updated db cols
-            startlat = eachrow[2]
-            startlon = eachrow[3]
-            speed = eachrow[4]
-            bearing = eachrow[5]
-            droprate = eachrow[6]
-            alt = eachrow[7]
-            # Find next location based on 1 sec time elapsed assumption
-            # returns a point geometry,assuming drop rate  -100m/sec
-            nextPoint = nextLocation(startlon, startlat, speed, bearing)
-            now = datetime.now()
-            current_time = now.strftime("%H:%M:%S")
-            with DatabaseCursor("config.json") as cur:
-                sql = f"""UPDATE public.missile_data
-                SET current_loc = {nextPoint},current_time='{current_time}'
-                ,altitude= {alt - droprate};"""
-                cur.execute(sql)
-       
+
+            ''' for each row,update the required columns -
+            1. current location
+            2. current time
+            3. altitude'''
+            for eachrow in missileList:
+                # the indexes has to be changed based on updated db cols
+                id = eachrow[0]
+                currentTime = eachrow[1]
+                currentLoc=eachrow[2]
+                targetID = eachrow[3]
+                speed = eachrow[7]
+                alt = eachrow[8]
+                bearing = eachrow[11]
+                droprate = eachrow[9]
+
+                getlatlon = f"""SELECT ST_X(current_loc) as x , ST_Y(current_loc) as y 
+                FROM public.missile_data
+                WHERE missile_id={id};"""
+                cur.execute(getlatlon)
+                currentlon,currentlat = cur.fetchall()[0][0]
+
+                # Find next location based on 1 sec time elapsed assumption
+                # returns a point geometry,assuming drop rate  -100m/sec
+                nextPoint = nextLocation(currentlon, currentlat, speed, bearing)
+                now = datetime.now()
+                current_time = now.strftime("%H:%M:%S")
+                with DatabaseCursor("config.json") as cur:
+                    updatesql = f"""UPDATE public.missile_data
+                    SET current_loc = {nextPoint},current_time='{current_time}'
+                    ,altitude= {alt - droprate}
+                    WHERE missile_id = {id};"""
+                    cur.execute(updatesql)
+        
 
     def randomStartPoint(self, side):
         """Generates a random lon/lat on a predefined bounding box."""
@@ -404,13 +427,13 @@ class MissileServer(object):
         yRange = abs(top) - abs(bottom)
         
         if side in "North":
-            return [-random.random() * xRange, top]
+            return [-(random.random()+1) * xRange, top]
         if side in "South":
-            return [-random.random() * xRange, bottom]
+            return [-(random.random()+1) * xRange, bottom]
         if side in "East":
-            return [right, random.random() * yRange]
+            return [right, (random.random()+0.5) * yRange]
         if side in "West":
-            return [left, random.random() * yRange]
+            return [left, (random.random()+0.5) * yRange]
 
     def check_deactivated_missiles(self):
         # run a query to get all missiles that have predicted hit time < current clock time
