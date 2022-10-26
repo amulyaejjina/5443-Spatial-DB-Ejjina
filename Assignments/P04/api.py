@@ -178,7 +178,7 @@ class DBQuery(object):
         return self.__query(sql + f" LIMIT {self.limit} OFFSET {offset}")
 
 
-conn = DBQuery(".config.json")
+conn = DBQuery("config.json")
 
 
 """
@@ -276,28 +276,19 @@ class MissileServer(object):
         #assigning the function to variable, so wheever someone calls 
         #missile server's clock , they get the system time
         self.clock = datetime.now
-        self.backend_main_thread = Thread(target = self.main_thread)
+        #self.backend_main_thread = Thread(target = self.main_thread)
         #start the backend_main_thread
-        self.backend_main_thread.start()
+        #self.backend_main_thread.start()
          #counter for missile id
         self.missile_counter = 1
 
-    def main_thread(self):
-        while True:
-            try:
-                # create missiles and place in db
-                self.create_missiles()
-                print('thread pulsed')
-
-                # check if any missile hit happened by now using clock
-                self.check_deactivated_missiles()
-                # increment clock - not needed as we are using system clock
-            except Exception as e:
-                print("\n================ backend main thread exception ================\n")
-                print(e)
-                print("\n===============================================================\n")
-            
-            time.sleep(MISSILE_GEN_INTERVAL)
+    def main_thread(self):                
+        print('thread pulsed')
+        self.create_missiles()
+        # check if any missile hit happened by now using clock
+        self.check_deactivated_missiles()
+        # increment clock - not needed as we are using system clock
+        
     
    
     def create_missiles(self):
@@ -319,6 +310,7 @@ class MissileServer(object):
         #     return getBoundary
 
         # Loop for 6 iterations (this loop has to run every MISSILE_GEN_INTERVAL)
+        global participants
         directions = ["East","West","North","South"]
         for eachDefender in participants.keys():
             print('new missile for team', eachDefender)
@@ -426,6 +418,7 @@ class MissileServer(object):
         pass
 
     def radar_sweep(self):
+        #missileserver.create_missiles()
         with DatabaseCursor("config.json") as cur:
             query = """SELECT jsonb_build_object(
                         'type',     'FeatureCollection',
@@ -436,7 +429,7 @@ class MissileServer(object):
                         'type',       'Feature',
                         'id',         missile_id,
                         'geometry',   ST_AsGeoJSON(current_loc)::jsonb,
-                        'properties', to_jsonb(inputs) - 'missile_id' - 'current_loc' - 'target_id' - 'target_city' - 'active'
+                        'properties', to_jsonb(inputs) - 'missile_id' - 'current_loc' - 'target_id' - 'target_city' - 'active' - 'start_time' - 'start_loc' -'speed' - 'drop_rate'
                     ) AS feature
                     FROM (SELECT * FROM public.missile_data WHERE active = true) inputs) features;"""
 
@@ -570,9 +563,9 @@ def getArsenal(id):
 
     i = len(names)*2
     for name in sorted(names):
-        print(name,i)
+        #print(name,i)
         missiles.extend([name] * i)
-        print(len(missiles))
+        #print(len(missiles))
         i -= 2
 
     random.shuffle(missiles)
@@ -606,7 +599,6 @@ def get_region(id:int):
         sql3= cur.fetchall()[0][0]
         return sql3
 
-    
 def nextLocation(lon: float, lat: float, speed: float, bearing: float, time:int=1, geojson: int=0):
     """
     lon (float) : x coordinate
@@ -688,6 +680,11 @@ async def docs_redirect():
     """Api's base route that displays the information created above in the ApiInfo section."""
     return RedirectResponse(url="/docs")
 
+@app.get("/bg")
+def background():
+    missileserver.main_thread()
+    return {}
+
 @app.get("/START/{teamID}")
 def start(teamID):
     pass
@@ -730,7 +727,6 @@ def reset():
     DO NOT call this method except for testing purposes. This will delete all missiles currently in the missile_data
     database and reset the registration assignment for a new game.
     """
-
     global participants
     participants = {}   #Reset all the regions to allow new participants to obtain a region
 
