@@ -757,7 +757,7 @@ Note:
 if __name__ == "__main__":
     #initializing missile server 
     #missileserver = MissileServer()
-    uvicorn.run("api:app", host="127.0.0.1", port=8080, log_level="debug", reload=True)
+    uvicorn.run("api:app", host="0.0.0.0", port=8080, log_level="debug", reload=True)
    # print(MissileInfo.missile("Patriot"))
 
     A = Position(lon=-94, lat=35, altitude=13000, time=0)
