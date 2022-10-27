@@ -486,7 +486,7 @@ class MissileServer(object):
         # decrement the missile based on missile_type from team_id's arsenal
 
     def registerDefender(self, id):
-        participants[id] = Participant(id,True)
+        participants[id] = Participant(id)
         return participants[id].__dict__
 
 def dsba(pos1, pos2):
@@ -726,10 +726,11 @@ def register_user():
     else:    
         return {'Error': 'No more regions available'}
 
-
 @app.get("/START/{teamID}")
 def start(teamID):
-    pass
+    # Making the team active so that they get missiles
+    participants[int(teamID)].active = True
+    return {"Let get started !!! Use RADAR_SWEEP to see incoming missiles..."}
 
 @app.get("/RADAR_SWEEP")
 def radar_sweep():
