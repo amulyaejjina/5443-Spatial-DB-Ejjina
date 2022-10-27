@@ -228,11 +228,12 @@ class MissileInfo(object):
         return missile_data["blasts"][id]
 
 class Participant:
-    def __init__(self, id):
+    def __init__(self, id,active = False):
         self.id = id
         self.region = self.assign_region()
         self.arsenal = self.assign_arsenal() 
         self.cities = self.assign_cities()
+        self.active = active
     
     def assign_region(self):
         #returns region id, and region object
@@ -275,7 +276,7 @@ class MissileServer(object):
     def __init__(self):
         #assigning the function to variable, so wheever someone calls 
         #missile server's clock , they get the system time
-        self.clock = datetime.now
+        self.clock = datetime.now()
         #self.backend_main_thread = Thread(target = self.main_thread)
         #start the backend_main_thread
         #self.backend_main_thread.start()
@@ -313,59 +314,63 @@ class MissileServer(object):
         global participants
         directions = ["East","West","North","South"]
         for eachDefender in participants.keys():
-            print('new missile for team', eachDefender)
-            cityList = participants[eachDefender].cities['features'] # has to check o/p format
-            targetCity = random.choices(cityList)[0]
-            direct = random.choice(directions)
+            if (participants[eachDefender].active):
+                print('new missile for team', eachDefender)
+                cityList = participants[eachDefender].cities['features'] # has to check o/p format
+                targetCity = random.choices(cityList)[0]
+                direct = random.choice(directions)
 
-            # keep repeating till we find one such startpoint
-            with DatabaseCursor("config.json") as cur:
-                while True:
-                    startLoc = self.randomStartPoint(direct)
-                    startLoc_lon = startLoc[0]
-                    startLoc_lat = startLoc[1]
+                # keep repeating till we find one such startpoint
+                with DatabaseCursor("config.json") as cur:
+                    while True:
+                        startLoc = self.randomStartPoint(direct)
+                        startLoc_lon = startLoc[0]
+                        startLoc_lat = startLoc[1]
 
-                    targetCity_lon = targetCity['geometry']['coordinates'][0]
-                    targetCity_lat = targetCity['geometry']['coordinates'][1]
+                        targetCity_lon = targetCity['geometry']['coordinates'][0]
+                        targetCity_lat = targetCity['geometry']['coordinates'][1]
 
-                    # Use ST_Distance to check distance btw target and start point
-                    query1 = f"""SELECT ST_Distance(
-                        'SRID=4326;POINT({startLoc_lon} {startLoc_lat})'::geometry,
-                        'SRID=4326;POINT({targetCity_lon} {targetCity_lat})'::geometry);"""
-                    cur.execute(query1)
-                    distance = cur.fetchall()[0][0]
+                        # Use ST_Distance to check distance btw target and start point
+                        query1 = f"""SELECT ST_Distance(
+                            'SRID=4326;POINT({startLoc_lon} {startLoc_lat})'::geometry,
+                            'SRID=4326;POINT({targetCity_lon} {targetCity_lat})'::geometry);"""
+                        cur.execute(query1)
+                        distance = cur.fetchall()[0][0]
 
-                    if distance > MIN_DISTANCE_BTW_STARTLOC_TARGET:
-                        # Data for INSERTS
-                        now = datetime.now()
-                        current_time = now.strftime("%H:%M:%S")
-                        start_time = current_time
-                        
-                        altitude = random.randrange(10000,15000,300)
+                        if distance > MIN_DISTANCE_BTW_STARTLOC_TARGET:
+                            # Data for INSERTS
+                            now = datetime.now()
+                            current_time = now.strftime("%H:%M:%S")
+                            start_time = current_time
+                            
+                            altitude = random.randrange(10000,15000,300)
 
-                        startPoint = Position(lon=startLoc_lon, lat=startLoc_lat, altitude=altitude, time=1)
-                        targetPoint = Position(lon=targetCity_lon, lat=targetCity_lat, altitude=0, time=4)
-                        bearing = compass_bearing(startPoint, targetPoint)
+                            startPoint = Position(lon=startLoc_lon, lat=startLoc_lat, altitude=altitude, time=1)
+                            targetPoint = Position(lon=targetCity_lon, lat=targetCity_lat, altitude=0, time=4)
+                            bearing = compass_bearing(startPoint, targetPoint)
 
-                        listofMissiles = list(missile_data['missiles'].keys())
-                        missileType = random.choices(listofMissiles)
-                        speedinmph = missile_data["speed"][missile_data["missiles"][missileType[0]]["speed"]]['mph']
+                            listofMissiles = list(missile_data['missiles'].keys())
+                            missileType = random.choices(listofMissiles)
+                            speedinmph = missile_data["speed"][missile_data["missiles"][missileType[0]]["speed"]]['ms']
 
-                        findtargetID = f"""SELECT id FROM public.cities
-                        WHERE longitude = {targetCity_lon} AND latitude = {targetCity_lat};"""
-                        cur.execute(findtargetID)
-                        targetID = cur.fetchall()[0][0]
+                            findtargetID = f"""SELECT id FROM public.cities
+                            WHERE longitude = {targetCity_lon} AND latitude = {targetCity_lat};"""
+                            cur.execute(findtargetID)
+                            targetID = cur.fetchall()[0][0]
 
-                        mistype = missileType[0]
-                        # have to insert bearing - right now I dont see a column in db
-                        sql = f"""INSERT INTO missile_data VALUES ({self.missile_counter}, '{current_time}',
-                        'SRID=4326;POINT({startLoc_lon} {startLoc_lat})'::geometry, {targetID},
-                        'SRID=4326;POINT({targetCity_lon} {targetCity_lat})'::geometry, '{start_time}',
-                        'SRID=4326;POINT({startLoc_lon} {startLoc_lat})'::geometry, {speedinmph},
-                        {altitude}, 12, true,{bearing},'{mistype}');"""
-                        cur.execute(sql)
-                        self.missile_counter += 1
-                        break
+                            totalDistance = haversineDistance(startLoc_lon,startLoc_lat,targetCity_lon,targetCity_lat,"meters")
+                            totalTime = (totalDistance/speedinmph)/60
+
+                            mistype = missileType[0]
+                            # have to insert bearing - right now I dont see a column in db
+                            sql = f"""INSERT INTO missile_data VALUES ({self.missile_counter}, '{current_time}',
+                            'SRID=4326;POINT({startLoc_lon} {startLoc_lat})'::geometry, {targetID},
+                            'SRID=4326;POINT({targetCity_lon} {targetCity_lat})'::geometry, '{start_time}',
+                            'SRID=4326;POINT({startLoc_lon} {startLoc_lat})'::geometry, {speedinmph},
+                            {altitude}, {speedinmph}, true,{bearing},'{mistype}');"""
+                            cur.execute(sql)
+                            self.missile_counter += 1
+                            break
                     
     def updateCurrentMissiles(self):
         '''
@@ -481,7 +486,7 @@ class MissileServer(object):
         # decrement the missile based on missile_type from team_id's arsenal
 
     def registerDefender(self, id):
-        participants[id] = Participant(id)
+        participants[id] = Participant(id,True)
         return participants[id].__dict__
 
 def dsba(pos1, pos2):
@@ -708,9 +713,6 @@ def background():
     missileserver.main_thread()
     return {}
 
-@app.get("/START/{teamID}")
-def start(teamID):
-    pass
 
 @app.get("/REGISTER")
 def register_user():
@@ -723,6 +725,11 @@ def register_user():
 
     else:    
         return {'Error': 'No more regions available'}
+
+
+@app.get("/START/{teamID}")
+def start(teamID):
+    pass
 
 @app.get("/RADAR_SWEEP")
 def radar_sweep():
@@ -742,7 +749,9 @@ def get_time():
 
 @app.get("/QUIT/{teamID}")
 def quit(teamID):
-    return {'finished':'your team has quit the game'}
+    # Making the active flag of specific participant to False
+    participants[teamID].active = False
+    return {'Finished':'Your team has quit the game...'}
 
 @app.get("/RESET")
 def reset():
@@ -761,7 +770,7 @@ def reset():
         sql = f"""DELETE FROM public.missile_data;"""
         cur.execute(sql)
 
-    return {'finished':'game has reset'}
+    return {'Finished':'Game has reset'}
 
 """
 This main block gets run when you invoke this file. How do you invoke this file?
