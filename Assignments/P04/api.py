@@ -1,5 +1,5 @@
 import math
-from fastapi import FastAPI
+from fastapi import FastAPI, BackgroundTasks
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
@@ -13,6 +13,7 @@ import time
 from threading import Thread
 from datetime import datetime
 from globals import *
+import asyncio
 
 """
            _____ _____   _____ _   _ ______ ____
@@ -51,6 +52,12 @@ app = FastAPI(
 
 # stores defenders playing missile command
 participants = {}
+makePartSQL = "INSERT INTO public.participants VALUES ("
+
+def makeParticipantTable(eachDefender):
+    with DatabaseCursor('config.json') as cur:
+        cur.execute(eachDefender)
+        print('sql uploaded')
 
 missile_data = {
     "missiles": {
@@ -229,11 +236,17 @@ class MissileInfo(object):
 
 class Participant:
     def __init__(self, id,active = False):
+        global makePartSQL
+        makePartSQL += f"{id}, "
         self.id = id
         self.region = self.assign_region()
         self.arsenal = self.assign_arsenal() 
         self.cities = self.assign_cities()
         self.active = active
+        makePartSQL += f""" {self.active});"""
+        makeParticipantTable(makePartSQL)
+        makePartSQL = "INSERT INTO public.participants VALUES ("
+        
     
     def assign_region(self):
         #returns region id, and region object
@@ -244,6 +257,8 @@ class Participant:
             geom = f"""SELECT newgeom from public.regions_simple WHERE cid = {self.id} AND gid = 6"""
             cur.execute(geom)
             region = cur.fetchall()[0][0]
+            global makePartSQL
+
             sql = f"""SELECT json_build_object(
             'type', 'FeatureCollection',
             'features', json_agg(ST_AsGeoJSON(t.*)::json)
@@ -252,6 +267,8 @@ class Participant:
 
             cur.execute(sql)
             sql3= cur.fetchall()[0][0]
+            makePartSQL += f""" '{json.dumps(sql3)}', """
+
             # features = []
             # features.append(sql3)
             # feature_collection = FeatureCollection(sql3)
@@ -313,64 +330,65 @@ class MissileServer(object):
         # Loop for 6 iterations (this loop has to run every MISSILE_GEN_INTERVAL)
         global participants
         directions = ["East","West","North","South"]
-        for eachDefender in participants.keys():
-            if (participants[eachDefender].active):
-                print('new missile for team', eachDefender)
-                cityList = participants[eachDefender].cities['features'] # has to check o/p format
-                targetCity = random.choices(cityList)[0]
-                direct = random.choice(directions)
+        with DatabaseCursor("config.json") as cur:
+            cur.execute("SELECT cities FROM public.participants WHERE active = True")
+            activeParticipants = cur.fetchall()
+        for eachDefender in activeParticipants:
+            cityList = eachDefender[0]['features']
+            targetCity = random.choices(cityList)[0]
+            direct = random.choice(directions)
 
-                # keep repeating till we find one such startpoint
-                with DatabaseCursor("config.json") as cur:
-                    while True:
-                        startLoc = self.randomStartPoint(direct)
-                        startLoc_lon = startLoc[0]
-                        startLoc_lat = startLoc[1]
+            # keep repeating till we find one such startpoint
+            with DatabaseCursor("config.json") as cur:
+                startLoc = self.randomStartPoint(direct)
+                startLoc_lon = startLoc[0]
+                startLoc_lat = startLoc[1]
 
-                        targetCity_lon = targetCity['geometry']['coordinates'][0]
-                        targetCity_lat = targetCity['geometry']['coordinates'][1]
+                targetCity_lon = targetCity['geometry']['coordinates'][0]
+                targetCity_lat = targetCity['geometry']['coordinates'][1]
 
-                        # Use ST_Distance to check distance btw target and start point
-                        query1 = f"""SELECT ST_Distance(
-                            'SRID=4326;POINT({startLoc_lon} {startLoc_lat})'::geometry,
-                            'SRID=4326;POINT({targetCity_lon} {targetCity_lat})'::geometry);"""
-                        cur.execute(query1)
-                        distance = cur.fetchall()[0][0]
+                # Use ST_Distance to check distance btw target and start point
+                query1 = f"""SELECT ST_Distance(
+                    'SRID=4326;POINT({startLoc_lon} {startLoc_lat})'::geometry,
+                    'SRID=4326;POINT({targetCity_lon} {targetCity_lat})'::geometry);"""
+                cur.execute(query1)
+                distance = cur.fetchall()[0][0]
 
-                        if distance > MIN_DISTANCE_BTW_STARTLOC_TARGET:
-                            # Data for INSERTS
-                            now = datetime.now()
-                            current_time = now.strftime("%H:%M:%S")
-                            start_time = current_time
-                            
-                            altitude = random.randrange(10000,15000,300)
+                # Data for INSERTS
+                now = datetime.now()
+                current_time = now.strftime("%H:%M:%S")
+                start_time = current_time
+                
+                altitude = random.randrange(10000,15000,300)
 
-                            startPoint = Position(lon=startLoc_lon, lat=startLoc_lat, altitude=altitude, time=1)
-                            targetPoint = Position(lon=targetCity_lon, lat=targetCity_lat, altitude=0, time=4)
-                            bearing = compass_bearing(startPoint, targetPoint)
+                startPoint = Position(lon=startLoc_lon, lat=startLoc_lat, altitude=altitude, time=1)
+                targetPoint = Position(lon=targetCity_lon, lat=targetCity_lat, altitude=0, time=4)
+                bearing = compass_bearing(startPoint, targetPoint)
 
-                            listofMissiles = list(missile_data['missiles'].keys())
-                            missileType = random.choices(listofMissiles)
-                            speedinmph = missile_data["speed"][missile_data["missiles"][missileType[0]]["speed"]]['ms']
+                listofMissiles = list(missile_data['missiles'].keys())
+                missileType = random.choices(listofMissiles)
+                speedinmph = missile_data["speed"][missile_data["missiles"][missileType[0]]["speed"]]['ms']
 
-                            findtargetID = f"""SELECT id FROM public.cities
-                            WHERE longitude = {targetCity_lon} AND latitude = {targetCity_lat};"""
-                            cur.execute(findtargetID)
-                            targetID = cur.fetchall()[0][0]
+                findtargetID = f"""SELECT id FROM public.cities
+                WHERE longitude = {targetCity_lon} AND latitude = {targetCity_lat};"""
+                cur.execute(findtargetID)
+                targetID = cur.fetchall()[0][0]
 
-                            totalDistance = haversineDistance(startLoc_lon,startLoc_lat,targetCity_lon,targetCity_lat,"meters")
-                            totalTime = (totalDistance/speedinmph)/60
+                totalDistance = haversineDistance(startLoc_lon,startLoc_lat,targetCity_lon,targetCity_lat,"meters")
+                totalTime = (totalDistance/speedinmph)/60
 
-                            mistype = missileType[0]
-                            # have to insert bearing - right now I dont see a column in db
-                            sql = f"""INSERT INTO missile_data VALUES ({self.missile_counter}, '{current_time}',
-                            'SRID=4326;POINT({startLoc_lon} {startLoc_lat})'::geometry, {targetID},
-                            'SRID=4326;POINT({targetCity_lon} {targetCity_lat})'::geometry, '{start_time}',
-                            'SRID=4326;POINT({startLoc_lon} {startLoc_lat})'::geometry, {speedinmph},
-                            {altitude}, {speedinmph}, true,{bearing},'{mistype}');"""
-                            cur.execute(sql)
-                            self.missile_counter += 1
-                            break
+                mistype = missileType[0]
+                # have to insert bearing - right now I dont see a column in db
+                sql = f"""INSERT INTO missile_data VALUES ({self.missile_counter}, '{current_time}',
+                'SRID=4326;POINT({startLoc_lon} {startLoc_lat})'::geometry, {targetID},
+                'SRID=4326;POINT({targetCity_lon} {targetCity_lat})'::geometry, '{start_time}',
+                'SRID=4326;POINT({startLoc_lon} {startLoc_lat})'::geometry, {speedinmph},
+                {altitude}, {speedinmph}, true,{bearing},'{mistype}');"""
+                cur.execute(sql)
+                print('missile was inserted')
+                self.missile_counter += 1
+
+
                     
     def updateCurrentMissiles(self):
         '''
@@ -487,6 +505,7 @@ class MissileServer(object):
 
     def registerDefender(self, id):
         participants[id] = Participant(id)
+        #makeParticipantTable(id)
         return participants[id].__dict__
 
 def dsba(pos1, pos2):
@@ -611,6 +630,8 @@ def getArsenal(id):
         sum += missileCount[name] 
         
     missileCount['total'] = sum
+    global makePartSQL
+    makePartSQL += f""" '{json.dumps(missileCount)}', """
     return missileCount
 
     return feature_collection
@@ -625,6 +646,8 @@ def get_region(id:int):
     with DatabaseCursor("config.json") as cur:
         cur.execute(sql)
         sql3= cur.fetchall()[0][0]
+        global makePartSQL
+        makePartSQL += f""" '{json.dumps(sql3)}', """
         return sql3
 
 def nextLocation(lon: float, lat: float, speed: float, bearing: float, time:int=1, geojson: int=0):
@@ -688,6 +711,7 @@ def missilePath(d: str = None, buffer: float = 0):
     return [start, end]
 
 
+
 """
   _____   ____  _    _ _______ ______  _____
  |  __ \ / __ \| |  | |__   __|  ____|/ ____|
@@ -704,36 +728,47 @@ def missilePath(d: str = None, buffer: float = 0):
 missileserver = MissileServer()
 
 @app.get("/")
-async def docs_redirect():
+def docs_redirect():
     """Api's base route that displays the information created above in the ApiInfo section."""
     return RedirectResponse(url="/docs")
 
+stuff_lock = asyncio.Lock()
 @app.get("/bg")
-def background():
-    missileserver.main_thread()
-    return {}
+async def background():
+    async with stuff_lock:
+        missileserver.main_thread()
+        await asyncio.sleep(MISSILE_GEN_INTERVAL)
+        return {}
 
 
 @app.get("/REGISTER")
-def register_user():
+async def register_user():
     # write a logic to find a unique id
     if(len(participants) < 6):
         id = random.randint(0, 5)
         while id in participants.keys():
             id = random.randint(0, 5)
+
         return missileserver.registerDefender(id)
 
     else:    
         return {'Error': 'No more regions available'}
 
 @app.get("/START/{teamID}")
-def start(teamID):
+async def start(teamID):
     # Making the team active so that they get missiles
-    participants[int(teamID)].active = True
-    return {"Let get started !!! Use RADAR_SWEEP to see incoming missiles..."}
+    alter = f"UPDATE public.participants SET active= true WHERE id= {int(teamID)}"
+    try:
+        with DatabaseCursor("config.json") as cur:
+            cur.execute(alter)
+            return {"Let get started !!! Use RADAR_SWEEP to see incoming missiles..."}
+
+    except Exception as e:
+        print(e)
+        return {'Internal Error. Try calling the route one more time'}
 
 @app.get("/RADAR_SWEEP")
-def radar_sweep():
+async def radar_sweep():
     return missileserver.radar_sweep()
 
 #@app.get("/missileInfo")
@@ -741,7 +776,7 @@ def missileInfo(name: str):
     return MissileInfo.missile(name)
 
 @app.get("/FIRE_SOLUTION/{solution_dict}")
-def receive_solution(solution_dict):
+async def receive_solution(solution_dict):
     return missileserver.fired_solutions(solution_dict)
 
 @app.get("/GET_CLOCK")
@@ -749,10 +784,16 @@ def get_time():
     return {"time" : str(missileserver.clock())}
 
 @app.get("/QUIT/{teamID}")
-def quit(teamID):
-    # Making the active flag of specific participant to False
-    participants[teamID].active = False
-    return {'Finished':'Your team has quit the game...'}
+async def quit(teamID):
+     # Making the team active so that they get missiles
+    alter = f"UPDATE public.participants SET active = True WHERE id = {int(teamID)}"
+    try:
+        with DatabaseCursor("config.json") as cur:
+            cur.execute(alter)
+            return {'Finished':'Your team has quit the game...'}
+
+    except Exception:
+        return {'Error' : 'Try quitting the game again'}
 
 @app.get("/RESET")
 def reset():
@@ -770,6 +811,8 @@ def reset():
         #Remove all the rows within the missile_data table
         sql = f"""DELETE FROM public.missile_data;"""
         cur.execute(sql)
+        #Remove all participant data from the participants table
+        cur.execute("DELETE FROM public.participants;")
 
     return {'Finished':'Game has reset'}
 
