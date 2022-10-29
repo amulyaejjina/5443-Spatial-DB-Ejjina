@@ -51,13 +51,15 @@ app = FastAPI(
  | |) / _ \| |/ _ \
  |___/_/ \_\_/_/ \_\
 """
+#CONFIGDOTJSON = '/home/attack/config.json'  #Server config file
+CONFIGDOTJSON = "config.json"               #testing config file
 
 # stores defenders playing missile command
 participants = {}
 makePartSQL = "INSERT INTO public.participants VALUES ("
 
 def makeParticipantTable(eachDefender):
-    with DatabaseCursor('config.json') as cur:
+    with DatabaseCursor(CONFIGDOTJSON) as cur:
         cur.execute(eachDefender)
         print('sql uploaded')
 
@@ -136,7 +138,7 @@ class DBQuery(object):
         self.offset = 0
 
     def __query(self, sql, qtype=3):
-        with DatabaseCursor("config.json") as cur:
+        with DatabaseCursor(CONFIGDOTJSON) as cur:
             #print(sql)
             cur.execute(sql)
 
@@ -187,7 +189,7 @@ class DBQuery(object):
         return self.__query(sql + f" LIMIT {self.limit} OFFSET {offset}")
 
 
-conn = DBQuery("config.json")
+conn = DBQuery(CONFIGDOTJSON)
 
 
 """
@@ -255,7 +257,7 @@ class Participant:
         return get_region(self.id)
 
     def assign_cities(self):
-        with DatabaseCursor("config.json") as cur:
+        with DatabaseCursor(CONFIGDOTJSON) as cur:
             geom = f"""SELECT newgeom from public.regions_simple WHERE cid = {self.id} AND gid = 6"""
             cur.execute(geom)
             region = cur.fetchall()[0][0]
@@ -304,6 +306,9 @@ class MissileServer(object):
 
     def main_thread(self):                
         print('thread pulsed')
+         #update the location of missiles that have already been fired
+        self.updateCurrentMissiles()
+        #create new missiles to fire at the defenders
         self.create_missiles()
         # check if any missile hit happened by now using clock
         self.check_deactivated_missiles()
@@ -322,7 +327,7 @@ class MissileServer(object):
         # (we are only using gid = 6 for region assignment since we have 6 teams)
         
         # The below will extract boundary and returns it
-        # with DatabaseCursor("config.json") as cur:
+        # with DatabaseCursor(CONFIGDOTJSON) as cur:
         #     result = f"""SELECT ST_AsText(ST_Boundary(newgeom)) AS boundaryOfUSA FROM public.regions_simple where gid=10 AND cid=10"""
         #     cur.execute(result)
         #     getBoundary = cur.fetchall()
@@ -332,7 +337,7 @@ class MissileServer(object):
         # Loop for 6 iterations (this loop has to run every MISSILE_GEN_INTERVAL)
         global participants
         directions = ["East","West","North","South"]
-        with DatabaseCursor("config.json") as cur:
+        with DatabaseCursor(CONFIGDOTJSON) as cur:
             cur.execute("SELECT cities FROM public.participants WHERE active = True")
             activeParticipants = cur.fetchall()
         for eachDefender in activeParticipants:
@@ -341,7 +346,7 @@ class MissileServer(object):
             direct = random.choice(directions)
 
             # keep repeating till we find one such startpoint
-            with DatabaseCursor("config.json") as cur:
+            with DatabaseCursor(CONFIGDOTJSON) as cur:
                 startLoc = self.randomStartPoint(direct)
                 startLoc_lon = startLoc[0]
                 startLoc_lat = startLoc[1]
@@ -402,7 +407,7 @@ class MissileServer(object):
         '''
         # Format of rows fetched fromt table - [(),(),()]
     
-        with DatabaseCursor("config.json") as cur:
+        with DatabaseCursor(CONFIGDOTJSON) as cur:
             getTable = f"""SELECT * FROM public.missile_data;"""
             cur.execute(getTable)
             missileList = cur.fetchall()
@@ -433,7 +438,7 @@ class MissileServer(object):
                 nextPoint = nextLocation(currentlon, currentlat, speed, bearing)
                 now = datetime.now()
                 current_time = now.strftime("%H:%M:%S")
-                with DatabaseCursor("config.json") as cur:
+                with DatabaseCursor(CONFIGDOTJSON) as cur:
                     updatesql = f"""UPDATE public.missile_data
                     SET current_loc = {nextPoint},current_time='{current_time}'
                     ,altitude= {alt - droprate}
@@ -467,7 +472,7 @@ class MissileServer(object):
 
     def radar_sweep(self):
         #missileserver.create_missiles()
-        with DatabaseCursor("config.json") as cur:
+        with DatabaseCursor(CONFIGDOTJSON) as cur:
             query = """SELECT jsonb_build_object(
                         'type',     'FeatureCollection',
                         'features', jsonb_agg(features.feature)
@@ -645,7 +650,7 @@ def get_region(id:int):
             )
             FROM public.regions_simple as t(gid, cid, newgeom) WHERE t.cid = {id} AND t.gid = 6;"""
     features = []
-    with DatabaseCursor("config.json") as cur:
+    with DatabaseCursor(CONFIGDOTJSON) as cur:
         cur.execute(sql)
         sql3= cur.fetchall()[0][0]
         global makePartSQL
@@ -664,7 +669,7 @@ def nextLocation(lon: float, lat: float, speed: float, bearing: float, time:int=
         select = "st_x(p2) as x,st_y(p2) as y"
     else:
         select = "ST_AsGeoJSON(p2)"
-    with DatabaseCursor("config.json") as cur:
+    with DatabaseCursor(CONFIGDOTJSON) as cur:
         sql = f"""
         WITH 
             Q1 AS (
@@ -761,7 +766,7 @@ async def start(teamID):
     # Making the team active so that they get missiles
     alter = f"UPDATE public.participants SET active= true WHERE id= {int(teamID)}"
     try:
-        with DatabaseCursor("config.json") as cur:
+        with DatabaseCursor(CONFIGDOTJSON) as cur:
             cur.execute(alter)
             return {"Let get started !!! Use RADAR_SWEEP to see incoming missiles..."}
 
@@ -804,7 +809,7 @@ async def quit(teamID):
      # Making the team active so that they get missiles
     alter = f"UPDATE public.participants SET active = True WHERE id = {int(teamID)}"
     try:
-        with DatabaseCursor("config.json") as cur:
+        with DatabaseCursor(CONFIGDOTJSON) as cur:
             cur.execute(alter)
             return {'Finished':'Your team has quit the game...'}
 
@@ -822,7 +827,7 @@ def reset():
 
     missileserver.missile_counter = 1
 
-    with DatabaseCursor("config.json") as cur:
+    with DatabaseCursor(CONFIGDOTJSON) as cur:
 
         #Remove all the rows within the missile_data table
         sql = f"""DELETE FROM public.missile_data;"""
