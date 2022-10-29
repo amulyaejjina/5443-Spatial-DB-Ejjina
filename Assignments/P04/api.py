@@ -306,8 +306,8 @@ class MissileServer(object):
 
     def main_thread(self):                
         print('thread pulsed')
-         #update the location of missiles that have already been fired
-        self.updateCurrentMissiles()
+        #update the location of missiles that have already been fired
+        
         #create new missiles to fire at the defenders
         self.create_missiles()
         # check if any missile hit happened by now using clock
@@ -374,7 +374,7 @@ class MissileServer(object):
 
                 listofMissiles = list(missile_data['missiles'].keys())
                 missileType = random.choices(listofMissiles)
-                speedinmph = missile_data["speed"][missile_data["missiles"][missileType[0]]["speed"]]['ms']
+                speedinms = missile_data["speed"][missile_data["missiles"][missileType[0]]["speed"]]['ms']
 
                 findtargetID = f"""SELECT id FROM public.cities
                 WHERE longitude = {targetCity_lon} AND latitude = {targetCity_lat};"""
@@ -382,17 +382,22 @@ class MissileServer(object):
                 targetID = cur.fetchall()[0][0]
 
                 totalDistance = haversineDistance(startLoc_lon,startLoc_lat,targetCity_lon,targetCity_lat,"meters")
-                totalTime = (totalDistance/speedinmph)/60
+                totalTime = (totalDistance/speedinms)/60
+                droprate = altitude/totalTime
 
                 mistype = missileType[0]
                 # have to insert bearing - right now I dont see a column in db
                 sql = f"""INSERT INTO missile_data VALUES ({self.missile_counter}, '{current_time}',
                 'SRID=4326;POINT({startLoc_lon} {startLoc_lat})'::geometry, {targetID},
                 'SRID=4326;POINT({targetCity_lon} {targetCity_lat})'::geometry, '{start_time}',
-                'SRID=4326;POINT({startLoc_lon} {startLoc_lat})'::geometry, {speedinmph},
-                {altitude}, {speedinmph}, true,{bearing},'{mistype}');"""
+                'SRID=4326;POINT({startLoc_lon} {startLoc_lat})'::geometry, {speedinms},
+                {altitude}, {droprate}, true,{bearing},'{mistype}');"""
                 cur.execute(sql)
                 print('missile was inserted')
+                # print("----------------------")
+                # print("Missile" + str(self.missile_counter) +" was created at "+str(start_time) +"with speed"+str(speedinms))
+                # print("total distance,time to travel:"+ str(totalDistance)+","+str(totalTime))
+                # print("----------------------")
                 self.missile_counter += 1
 
 
@@ -427,6 +432,17 @@ class MissileServer(object):
                 bearing = eachrow[11]
                 droprate = eachrow[9]
 
+                statuss = False
+                modified_alt = (alt-droprate) if (alt-droprate)>0 else 0
+                if modified_alt == 0:
+                    # print("---------------------------------")
+                    # print("Missile" + str(id) +" touched target at "+str(currentTime))
+                    # print("---------------------------------")
+                    updatestate = f"""UPDATE public.missile_data
+                    SET active = {statuss}
+                    WHERE missile_id = {id};"""
+                    cur.execute(updatestate)
+
                 getlatlon = f"""SELECT ST_X(current_loc) as x , ST_Y(current_loc) as y 
                 FROM public.missile_data
                 WHERE missile_id={id};"""
@@ -440,7 +456,7 @@ class MissileServer(object):
                 current_time = now.strftime("%H:%M:%S")
                 updatesql = f"""UPDATE public.missile_data
                 SET current_loc = 'SRID=4326;POINT({nextPoint[0][0]} {nextPoint[0][1]})'::geometry, "current_time"= '{current_time}'
-                ,altitude= {alt - droprate}
+                ,altitude= {modified_alt}
                 WHERE missile_id = {id};"""
                 cur.execute(updatesql)
                 print('updated missiles')
@@ -743,8 +759,10 @@ stuff_lock = asyncio.Lock()
 @app.get("/bg")
 async def background():
     async with stuff_lock:
+        for i in range(0,5):
+            missileserver.updateCurrentMissiles()
+            await asyncio.sleep(MISSILE_GEN_INTERVAL)
         missileserver.main_thread()
-        await asyncio.sleep(MISSILE_GEN_INTERVAL)
         return {}
 
 
@@ -830,8 +848,8 @@ def reset():
     with DatabaseCursor(CONFIGDOTJSON) as cur:
 
         #Remove all the rows within the missile_data table
-        sql = f"""DELETE FROM public.missile_data;"""
-        cur.execute(sql)
+        cur.execute("DELETE FROM public.missile_data")
+
         #Remove all participant data from the participants table
         cur.execute("DELETE FROM public.participants;")
 
