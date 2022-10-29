@@ -51,8 +51,8 @@ app = FastAPI(
  | |) / _ \| |/ _ \
  |___/_/ \_\_/_/ \_\
 """
-#CONFIGDOTJSON = '/home/attack/config.json'  #Server config file
-CONFIGDOTJSON = "config.json"               #testing config file
+CONFIGDOTJSON = '/home/attack/config.json'  #Server config file
+#CONFIGDOTJSON = "config.json"               #testing config file
 
 # stores defenders playing missile command
 participants = {}
@@ -431,19 +431,19 @@ class MissileServer(object):
                 FROM public.missile_data
                 WHERE missile_id={id};"""
                 cur.execute(getlatlon)
-                currentlon,currentlat = cur.fetchall()[0][0]
+                currentlon,currentlat = cur.fetchall()[0]
 
                 # Find next location based on 1 sec time elapsed assumption
                 # returns a point geometry,assuming drop rate  -100m/sec
                 nextPoint = nextLocation(currentlon, currentlat, speed, bearing)
                 now = datetime.now()
                 current_time = now.strftime("%H:%M:%S")
-                with DatabaseCursor(CONFIGDOTJSON) as cur:
-                    updatesql = f"""UPDATE public.missile_data
-                    SET current_loc = {nextPoint},current_time='{current_time}'
-                    ,altitude= {alt - droprate}
-                    WHERE missile_id = {id};"""
-                    cur.execute(updatesql)
+                updatesql = f"""UPDATE public.missile_data
+                SET current_loc = 'SRID=4326;POINT({nextPoint[0][0]} {nextPoint[0][1]})'::geometry, "current_time"= '{current_time}'
+                ,altitude= {alt - droprate}
+                WHERE missile_id = {id};"""
+                cur.execute(updatesql)
+                print('updated missiles')
         
 
     def randomStartPoint(self, side):
