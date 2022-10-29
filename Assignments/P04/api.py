@@ -14,6 +14,8 @@ from threading import Thread
 from datetime import datetime
 from globals import *
 import asyncio
+from pydantic import BaseModel
+from datetime import datetime, timezone
 
 """
            _____ _____   _____ _   _ ______ ____
@@ -775,9 +777,23 @@ async def radar_sweep():
 def missileInfo(name: str):
     return MissileInfo.missile(name)
 
-@app.get("/FIRE_SOLUTION/{solution_dict}")
-async def receive_solution(solution_dict):
-    return missileserver.fired_solutions(solution_dict)
+class fireSol(BaseModel):
+    team_id:  int
+    target_missile_id: int
+    missile_type: str 
+    fired_time: str  
+    firedfrom_lat: float
+    firedfrom_lon: float 
+    aim_lat: float 
+    aim_lon: float 
+    expected_hit_time: str
+    speed: float 
+    target_alt: float 
+
+@app.post("/FIRE_SOLUTION/")
+async def receive_solution(ms:fireSol):
+    #return missileserver.fired_solutions(solution_dict)
+    return ms
 
 @app.get("/GET_CLOCK")
 def get_time():
