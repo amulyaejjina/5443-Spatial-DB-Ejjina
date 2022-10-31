@@ -820,7 +820,9 @@ async def receive_solution(ms:fireSol):
 
 @app.get("/GET_CLOCK")
 def get_time():
-    return {"time" : str(missileserver.clock())}
+    now = datetime.now()
+    current_time = now.strftime("%H:%M:%S")
+    return {"time" : str(current_time)}
 
 @app.get("/QUIT/{teamID}")
 async def quit(teamID):
