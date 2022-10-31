@@ -1,3 +1,4 @@
+from imp import source_from_cache
 import math
 from fastapi import FastAPI, BackgroundTasks
 from fastapi.responses import RedirectResponse
@@ -11,7 +12,7 @@ from geojson import Point, Feature, FeatureCollection, dump
 from math import radians, degrees, cos, sin, asin, sqrt, pow, atan2
 import time
 from threading import Thread
-from datetime import datetime
+from datetime import datetime, timedelta
 from globals import *
 import asyncio
 from pydantic import BaseModel
@@ -51,8 +52,8 @@ app = FastAPI(
  | |) / _ \| |/ _ \
  |___/_/ \_\_/_/ \_\
 """
-CONFIGDOTJSON = '/home/attack/config.json'  #Server config file
-#CONFIGDOTJSON = "config.json"               #testing config file
+#CONFIGDOTJSON = '/home/attack/config.json'  #Server config file
+CONFIGDOTJSON = "config.json"               #testing config file
 
 # stores defenders playing missile command
 participants = {}
@@ -513,7 +514,7 @@ class MissileServer(object):
                 return {"N/A" : "No missiles are flying over the USA at this time"}
         
     def fired_solutions(self, solution_data):
-        curr_time = self.clock()
+        #curr_time = self.clock()
         # read in the team id, missile type, targeted missile id , start location , fired direction and start time
         # get targetted missile data from table using targetted missile id from above
         # calculate intersection point using postgis api
@@ -525,6 +526,96 @@ class MissileServer(object):
             # dont update anything, or maintain a separate table for failed missiles if we want to send a notification after some time.
 
         # decrement the missile based on missile_type from team_id's arsenal
+        sql = f"""SELECT * FROM public.missile_data WHERE missile_id = {solution_data.target_missile_id}"""
+        with DatabaseCursor(CONFIGDOTJSON) as cur:
+            cur.execute(sql)
+            missile_info = cur.fetchall()[0]
+            current_lon = cur.execute(f"SELECT ST_X('{missile_info[2]}');")
+            current_lon = cur.fetchall()[0][0]
+            current_lat = cur.execute(f"SELECT ST_Y('{missile_info[2]}');")
+            current_lat = cur.fetchall()[0][0]
+            target_lon = cur.execute(f"SELECT ST_X('{missile_info[4]}');")
+            target_lon = cur.fetchall()[0][0]
+            target_lat = cur.execute(f"SELECT ST_Y('{missile_info[4]}');")
+            target_lat = cur.fetchall()[0][0]
+            altitude = missile_info[8]
+            attack_speed = missile_info[7]
+            current_time = missile_info[1]
+
+            #See if points intersect
+            intersect = f"""SELECT ST_3DIntersects(
+                    'SRID=4326;LINESTRING(
+                        {solution_data.firedfrom_lon} {solution_data.firedfrom_lat} 0, {solution_data.aim_lon} {solution_data.aim_lat} {solution_data.target_alt})'::geometry,
+                    'SRID=4326;LINESTRING(
+                        {current_lon} {current_lat} {altitude}, {target_lon} {target_lat} 0)'::geometry
+                    );"""
+            
+            cur.execute(intersect)
+            will_intersect = cur.fetchall()[0][0]
+            
+            #if intersects then find when both missiles reach the intersection
+            if(will_intersect):
+                #calculate intersection point using postgis
+                intersect = f"""SELECT ST_AsText(
+                    ST_3DIntersection(
+                        'SRID=4326;LINESTRING(
+                            {solution_data.firedfrom_lon} {solution_data.firedfrom_lat} 0, {solution_data.aim_lon} {solution_data.aim_lat} {solution_data.target_alt})'::geometry,
+                        'SRID=4326;LINESTRING(
+                            {current_lon} {current_lat} {altitude}, {target_lon} {target_lat} 0)'::geometry
+                    ));"""
+                cur.execute(intersect)
+                intersect_point = cur.fetchall()[0][0]
+
+                #get time it takes our missile to reach that point. 2163 is units in meters
+                attacker_distance = f"""SELECT ST_3DDistance(
+                    ST_Transform('SRID=4326;POINT({current_lon} {current_lat} {altitude})'::geometry,2163),
+                    ST_Transform("{intersect_point}")'::geometry,2163)
+                    )"""
+
+                defender_distance = f"""SELECT ST_3DDistance(
+                    ST_Transform('SRID=4326;POINT({solution_data.firedfrom_lon} {solution_data.firedfrom_lat} 0)'::geometry,2163),
+                    ST_Transform("{intersect_point}")'::geometry,2163)
+                    )"""
+                
+                cur.execute(attacker_distance)
+                attacker_distance = cur.fetchall()[0][0]
+                cur.execute(defender_distance)
+                defender_distance = cur.fetchall()[0][0]
+
+                attack_time_taken = attacker_distance / attack_speed
+                defend_time_taken = defender_distance / solution_data.speed
+
+                #time our missile will reach intersection
+                attack_intersect_time = timedelta(seconds = attack_time_taken) + datetime.strptime(current_time)
+                defend_intersect_time = timedelta(seconds= defend_time_taken) + datetime.strptime(solution_data.fired_time)
+                
+                defend_low_buffer = defend_intersect_time - timedelta(seconds = 1)
+                defend_high_buffer = defend_intersect_time + timedelta(seconds = 1)
+                
+                if(defend_low_buffer <= attack_intersect_time <= defend_high_buffer):
+                    return {"Congrats" : "Missile Hit Its Target!!"}
+
+                # startPoint = Position(lon = solution_data.firefrom_lon, lat = solution_data.firefrom_lat, altitude = 0)
+                # xyz = f"""SELECT ST_X("{intersect_point}") as x, ST_Y("{intersect_point}" as y, ST_Z("{intersect_point}") as z;"""
+                # cur.execute(xyz)
+                # intersect_lon, intersect_lat, intersect_alt = cur.fetchall()[0]
+                # targetPoint = Position(lon = intersect_lon , lat = intersect_lat, altitude = intersect_alt, time = 1)
+
+                # bearing = compass_bearing(startPoint, targetPoint)
+                # project = f"""SELECT ST_SetSRID(ST_Project(
+                #     'POINT({solution_data.firefrom_lon} {solution_data.firefrom_lat})'::geometry, 
+                #     {solution_data.speed * time_taken},
+                #     radians({bearing}))::geometry,4326"""
+
+                # cur.execute(project)
+                # cur.fetchall()[0]
+                #if(intersect_time == solution_data.expected_hit_time):
+                else:
+                    return{"Missed" : " Your missile did not hit its target"}
+                
+            else:
+                return {"Missed" : " Your missile did not hit its target"}
+
 
     def registerDefender(self, id):
         participants[id] = Participant(id)
@@ -592,7 +683,7 @@ def compass_bearing(PositionA, PositionB):
         pointA  : The tuple representing the latitude/longitude for the first point. Latitude and longitude must be in decimal degrees
         pointB  : The tuple representing the latitude/longitude for the second point. Latitude and longitude must be in decimal degrees
     Returns:
-        (float) : The bearing in degrees
+        (float) : The bearing in radians
     """
 
     if not isinstance(PositionA, Position) or not isinstance(PositionB, Position):
@@ -815,8 +906,8 @@ class fireSol(BaseModel):
 
 @app.post("/FIRE_SOLUTION/")
 async def receive_solution(ms:fireSol):
-    #return missileserver.fired_solutions(solution_dict)
-    return ms
+    return missileserver.fired_solutions(ms)
+    #return ms
 
 @app.get("/GET_CLOCK")
 def get_time():
