@@ -52,8 +52,8 @@ app = FastAPI(
  | |) / _ \| |/ _ \
  |___/_/ \_\_/_/ \_\
 """
-#CONFIGDOTJSON = '/home/attack/config.json'  #Server config file
-CONFIGDOTJSON = "config.json"               #testing config file
+CONFIGDOTJSON = '/home/attack/config.json'  #Server config file
+#CONFIGDOTJSON = "config.json"               #testing config file
 
 # stores defenders playing missile command
 participants = {}
@@ -591,7 +591,7 @@ class MissileServer(object):
                 
                 defend_low_buffer = defend_intersect_time - timedelta(seconds = 1)
                 defend_high_buffer = defend_intersect_time + timedelta(seconds = 1)
-                
+
                 if(defend_low_buffer <= attack_intersect_time <= defend_high_buffer):
                     return {"Congrats" : "Missile Hit Its Target!!"}
 
