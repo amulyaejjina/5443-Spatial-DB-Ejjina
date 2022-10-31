@@ -52,8 +52,8 @@ app = FastAPI(
  | |) / _ \| |/ _ \
  |___/_/ \_\_/_/ \_\
 """
-CONFIGDOTJSON = '/home/attack/config.json'  #Server config file
-#CONFIGDOTJSON = "config.json"               #testing config file
+#CONFIGDOTJSON = '/home/attack/config.json'  #Server config file
+CONFIGDOTJSON = "config.json"               #testing config file
 
 # stores defenders playing missile command
 participants = {}
@@ -339,15 +339,16 @@ class MissileServer(object):
         global participants
         directions = ["East","West","North","South"]
         with DatabaseCursor(CONFIGDOTJSON) as cur:
-            cur.execute("SELECT cities FROM public.participants WHERE active = True")
+            cur.execute("SELECT id, cities FROM public.participants WHERE active = True")
             activeParticipants = cur.fetchall()
-        for eachDefender in activeParticipants:
-            cityList = eachDefender[0]['features']
-            targetCity = random.choices(cityList)[0]
-            direct = random.choice(directions)
+            
+            for ids, eachDefender in activeParticipants:
+                cur.execute(f"UPDATE public.defender_stats SET missile_targeted_at_region = missile_targeted_at_region + 1 WHERE team_id = {ids};")
 
-            # keep repeating till we find one such startpoint
-            with DatabaseCursor(CONFIGDOTJSON) as cur:
+                cityList = eachDefender['features']
+                targetCity = random.choices(cityList)[0]
+                direct = random.choice(directions)
+
                 startLoc = self.randomStartPoint(direct)
                 startLoc_lon = startLoc[0]
                 startLoc_lat = startLoc[1]
@@ -593,6 +594,7 @@ class MissileServer(object):
                 defend_high_buffer = defend_intersect_time + timedelta(seconds = 1)
 
                 if(defend_low_buffer <= attack_intersect_time <= defend_high_buffer):
+                    cur.execute(f"UPDATE public.defender_stats SET missiles_hit_by_team = missiles_hit_by_team + 1 WHERE team_id = {solution_data.team_id};")
                     return {"Congrats" : "Missile Hit Its Target!!"}
 
                 # startPoint = Position(lon = solution_data.firefrom_lon, lat = solution_data.firefrom_lat, altitude = 0)
@@ -865,6 +867,10 @@ async def register_user():
         while id in participants.keys():
             id = random.randint(0, 5)
 
+        with DatabaseCursor(CONFIGDOTJSON) as cur:
+            cur.execute(f"INSERT INTO public.defender_stats VALUES({id}, 0, 0);")
+            print('stats ready')
+
         return missileserver.registerDefender(id)
 
     else:    
@@ -918,7 +924,7 @@ def get_time():
 @app.get("/QUIT/{teamID}")
 async def quit(teamID):
      # Making the team active so that they get missiles
-    alter = f"UPDATE public.participants SET active = True WHERE id = {int(teamID)}"
+    alter = f"UPDATE public.participants SET active = False WHERE id = {int(teamID)}"
     try:
         with DatabaseCursor(CONFIGDOTJSON) as cur:
             cur.execute(alter)
@@ -946,7 +952,31 @@ def reset():
         #Remove all participant data from the participants table
         cur.execute("DELETE FROM public.participants;")
 
+        #Remove all participant stats from the defender_stats table
+        cur.execute("DELETE FROM public.defender_stats")
+
     return {'Finished':'Game has reset'}
+
+
+@app.get("/SHOW_STATS")
+def stats():
+    stats = []
+    with DatabaseCursor(CONFIGDOTJSON) as cur:
+        cur.execute("SELECT * FROM public.defender_stats")
+        teams = cur.fetchall()
+        for team in teams:
+            if(team[1] != 0):
+                percent_hit = team[2] / team[1] * 100
+            else:
+                percent_hit = 100
+            stats.append({"team_id" : team[0], \
+            "missiles_fired_at_team" : team[1], \
+            "missiles_successfully_hit" : team[2], \
+            "accuracy_score" : f"{percent_hit}%"})
+
+        return stats
+
+    
 
 """
 This main block gets run when you invoke this file. How do you invoke this file?
