@@ -52,8 +52,8 @@ app = FastAPI(
  | |) / _ \| |/ _ \
  |___/_/ \_\_/_/ \_\
 """
-CONFIGDOTJSON = '/home/attack/config.json'  #Server config file
-#CONFIGDOTJSON = "config.json"               #testing config file
+#CONFIGDOTJSON = '/home/attack/config.json'  #Server config file
+CONFIGDOTJSON = "config.json"               #testing config file
 
 # stores defenders playing missile command
 participants = {}
@@ -962,7 +962,7 @@ def reset():
 def stats():
     stats = []
     with DatabaseCursor(CONFIGDOTJSON) as cur:
-        cur.execute("SELECT * FROM public.defender_stats")
+        cur.execute("SELECT * FROM public.defender_stats ORDER BY team_id")
         teams = cur.fetchall()
         for team in teams:
             if(team[1] != 0):
