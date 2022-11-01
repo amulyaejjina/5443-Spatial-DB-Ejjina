@@ -52,8 +52,8 @@ app = FastAPI(
  | |) / _ \| |/ _ \
  |___/_/ \_\_/_/ \_\
 """
-#CONFIGDOTJSON = '/home/attack/config.json'  #Server config file
-CONFIGDOTJSON = "config.json"               #testing config file
+CONFIGDOTJSON = '/home/attack/config.json'  #Server config file
+#CONFIGDOTJSON = "config.json"               #testing config file
 
 # stores defenders playing missile command
 participants = {}
