@@ -306,7 +306,7 @@ class MissileServer(object):
         self.missile_counter = 1
 
     def main_thread(self):                
-        print('thread pulsed')
+        #print('thread pulsed')
         #update the location of missiles that have already been fired
         
         #create new missiles to fire at the defenders
@@ -356,14 +356,6 @@ class MissileServer(object):
                 targetCity_lon = targetCity['geometry']['coordinates'][0]
                 targetCity_lat = targetCity['geometry']['coordinates'][1]
 
-                # Use ST_Distance to check distance btw target and start point
-                query1 = f"""SELECT ST_Distance(
-                    'SRID=4326;POINT({startLoc_lon} {startLoc_lat})'::geometry,
-                    'SRID=4326;POINT({targetCity_lon} {targetCity_lat})'::geometry);"""
-                cur.execute(query1)
-                distance = cur.fetchall()[0][0]
-                print('distance of path ', distance)
-
                 # Data for INSERTS
                 now = datetime.now()
                 current_time = now.strftime("%H:%M:%S")
@@ -384,9 +376,20 @@ class MissileServer(object):
                 cur.execute(findtargetID)
                 targetID = cur.fetchall()[0][0]
 
-                totalDistance = haversineDistance(startLoc_lon,startLoc_lat,targetCity_lon,targetCity_lat,"meters")
-                print('total distance', totalDistance)
-                totalTime = (totalDistance/speedinms)
+                #totalDistance = haversineDistance(startLoc_lon,startLoc_lat,targetCity_lon,targetCity_lat,"meters")
+                #print('total distance', totalDistance)
+
+                # Use ST_Distance to check distance btw target and start point
+                #ST_DistanceSphere measures the distance in meters. Had very close accuracy with haversineDistance
+                query1 = f"""SELECT ST_DistanceSphere(
+                    'SRID=4326;POINT({startLoc_lon} {startLoc_lat})'::geometry,
+                    'SRID=4326;POINT({targetCity_lon} {targetCity_lat})'::geometry);"""
+                cur.execute(query1)
+                distance = cur.fetchall()[0][0]
+                print('distance of path ', distance)
+
+
+                totalTime = (distance/speedinms)
                 print('total time is', totalTime)
 
                 droprate = altitude/totalTime
