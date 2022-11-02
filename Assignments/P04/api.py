@@ -79,15 +79,15 @@ missile_data = {
         "Trident": {"speed": 9, "blast": 9},
     },
     "speed": {
-        1: {"ms": 111, "mph": 248.307},
-        2: {"ms": 222, "mph": 496.614},
-        3: {"ms": 333, "mph": 744.921},
-        4: {"ms": 444, "mph": 993.228},
-        5: {"ms": 555, "mph": 1241.535},
-        6: {"ms": 666, "mph": 1489.842},
-        7: {"ms": 777, "mph": 1738.149},
-        8: {"ms": 888, "mph": 1986.456},
-        9: {"ms": 999, "mph": 2234.763},
+        1: {"ms": 555, "mph": 248.307},
+        2: {"ms": 1110, "mph": 496.614},
+        3: {"ms": 1665, "mph": 744.921},
+        4: {"ms": 2220, "mph": 993.228},
+        5: {"ms": 2775, "mph": 1241.535},
+        6: {"ms": 3330, "mph": 1489.842},
+        7: {"ms": 3885, "mph": 1738.149},
+        8: {"ms": 4440, "mph": 1986.456},
+        9: {"ms": 4995, "mph": 2234.763},
     },
     "blast": {1: 200, 2: 300, 3: 400, 4: 500, 5: 600, 6: 700, 7: 800, 8: 900, 9: 1000},
 }
@@ -384,7 +384,7 @@ class MissileServer(object):
                 targetID = cur.fetchall()[0][0]
 
                 totalDistance = haversineDistance(startLoc_lon,startLoc_lat,targetCity_lon,targetCity_lat,"meters")
-                totalTime = (totalDistance/speedinms)/60
+                totalTime = (totalDistance/speedinms)
                 droprate = altitude/totalTime
 
                 mistype = missileType[0]
