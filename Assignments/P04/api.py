@@ -376,20 +376,20 @@ class MissileServer(object):
                 cur.execute(findtargetID)
                 targetID = cur.fetchall()[0][0]
 
-                #totalDistance = haversineDistance(startLoc_lon,startLoc_lat,targetCity_lon,targetCity_lat,"meters")
+                totalDistance = haversineDistance(startLoc_lon,startLoc_lat,targetCity_lon,targetCity_lat,"meters")
                 #print('total distance', totalDistance)
 
                 # Use ST_Distance to check distance btw target and start point
                 #ST_DistanceSphere measures the distance in meters. Had very close accuracy with haversineDistance
-                query1 = f"""SELECT ST_DistanceSphere(
-                    'SRID=4326;POINT({startLoc_lon} {startLoc_lat})'::geometry,
-                    'SRID=4326;POINT({targetCity_lon} {targetCity_lat})'::geometry);"""
-                cur.execute(query1)
-                distance = cur.fetchall()[0][0]
-                print('distance of path ', distance)
+                # query1 = f"""SELECT ST_DistanceSphere(
+                #     'SRID=4326;POINT({startLoc_lon} {startLoc_lat})'::geometry,
+                #     'SRID=4326;POINT({targetCity_lon} {targetCity_lat})'::geometry);"""
+                # cur.execute(query1)
+                # distance = cur.fetchall()[0][0]
+                # print('distance of path ', distance)
 
 
-                totalTime = (distance/speedinms)
+                totalTime = (totalDistance/speedinms)
                 print('total time is', totalTime)
 
                 droprate = altitude/totalTime
@@ -791,7 +791,7 @@ def nextLocation(lon: float, lat: float, speed: float, bearing: float, time:int=
         sql = f"""
         WITH 
             Q1 AS (
-                SELECT ST_SetSRID(ST_Project('POINT({lon} {lat})'::geometry, {speed*time}, {bearing})::geometry,4326
+                SELECT ST_SetSRID(ST_Project('POINT({lon} {lat})'::geography, {speed*time}, {bearing})::geometry,4326
                 
                 ) as p2
             )
