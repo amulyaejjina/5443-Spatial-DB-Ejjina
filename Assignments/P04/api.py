@@ -79,15 +79,15 @@ missile_data = {
         "Trident": {"speed": 9, "blast": 9},
     },
     "speed": {
-        1: {"ms": 16650, "mph": 248.307},
-        2: {"ms": 18500, "mph": 496.614},
-        3: {"ms": 27750, "mph": 744.921},
-        4: {"ms": 37000, "mph": 993.228},
-        5: {"ms": 46250, "mph": 1241.535},
-        6: {"ms": 55500, "mph": 1489.842},
-        7: {"ms": 64750, "mph": 1738.149},
-        8: {"ms": 74000, "mph": 1986.456},
-        9: {"ms": 83250, "mph": 2234.763},
+        1: {"ms": 24975, "mph": 248.307},
+        2: {"ms": 27750, "mph": 496.614},
+        3: {"ms": 33300, "mph": 744.921},
+        4: {"ms": 36075, "mph": 993.228},
+        5: {"ms": 38850, "mph": 1241.535},
+        6: {"ms": 41625, "mph": 1489.842},
+        7: {"ms": 44400, "mph": 1738.149},
+        8: {"ms": 47175, "mph": 1986.456},
+        9: {"ms": 49950, "mph": 2234.763},
     },
     "blast": {1: 200, 2: 300, 3: 400, 4: 500, 5: 600, 6: 700, 7: 800, 8: 900, 9: 1000},
 }
@@ -385,6 +385,7 @@ class MissileServer(object):
                 targetID = cur.fetchall()[0][0]
 
                 totalDistance = haversineDistance(startLoc_lon,startLoc_lat,targetCity_lon,targetCity_lat,"meters")
+                print('total distance', totalDistance)
                 totalTime = (totalDistance/speedinms)
                 print('total time is', totalTime)
 
@@ -467,7 +468,6 @@ class MissileServer(object):
                 ,altitude= {modified_alt}
                 WHERE missile_id = {id};"""
                 cur.execute(updatesql)
-                print('updated missiles')
         
 
     def randomStartPoint(self, side):
