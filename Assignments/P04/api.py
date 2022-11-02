@@ -79,15 +79,15 @@ missile_data = {
         "Trident": {"speed": 9, "blast": 9},
     },
     "speed": {
-        1: {"ms": 555, "mph": 248.307},
-        2: {"ms": 1110, "mph": 496.614},
-        3: {"ms": 1665, "mph": 744.921},
-        4: {"ms": 2220, "mph": 993.228},
-        5: {"ms": 2775, "mph": 1241.535},
-        6: {"ms": 3330, "mph": 1489.842},
-        7: {"ms": 3885, "mph": 1738.149},
-        8: {"ms": 4440, "mph": 1986.456},
-        9: {"ms": 4995, "mph": 2234.763},
+        1: {"ms": 16650, "mph": 248.307},
+        2: {"ms": 18500, "mph": 496.614},
+        3: {"ms": 27750, "mph": 744.921},
+        4: {"ms": 37000, "mph": 993.228},
+        5: {"ms": 46250, "mph": 1241.535},
+        6: {"ms": 55500, "mph": 1489.842},
+        7: {"ms": 64750, "mph": 1738.149},
+        8: {"ms": 74000, "mph": 1986.456},
+        9: {"ms": 83250, "mph": 2234.763},
     },
     "blast": {1: 200, 2: 300, 3: 400, 4: 500, 5: 600, 6: 700, 7: 800, 8: 900, 9: 1000},
 }
@@ -362,6 +362,7 @@ class MissileServer(object):
                     'SRID=4326;POINT({targetCity_lon} {targetCity_lat})'::geometry);"""
                 cur.execute(query1)
                 distance = cur.fetchall()[0][0]
+                print('distance of path ', distance)
 
                 # Data for INSERTS
                 now = datetime.now()
@@ -385,9 +386,14 @@ class MissileServer(object):
 
                 totalDistance = haversineDistance(startLoc_lon,startLoc_lat,targetCity_lon,targetCity_lat,"meters")
                 totalTime = (totalDistance/speedinms)
+                print('total time is', totalTime)
+
                 droprate = altitude/totalTime
+                print('droprate is ', droprate)
 
                 mistype = missileType[0]
+                print("type of missile, ", mistype)
+
                 # have to insert bearing - right now I dont see a column in db
                 sql = f"""INSERT INTO missile_data VALUES ({self.missile_counter}, '{current_time}',
                 'SRID=4326;POINT({startLoc_lon} {startLoc_lat})'::geometry, {targetID},
