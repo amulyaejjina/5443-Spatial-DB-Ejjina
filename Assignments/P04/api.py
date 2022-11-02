@@ -431,7 +431,7 @@ class MissileServer(object):
                 targetID = eachrow[3]
                 speed = eachrow[7]
                 alt = eachrow[8]
-                bearing = eachrow[11]
+                bearing = float(eachrow[11])
                 droprate = eachrow[9]
 
                 statuss = False
@@ -782,7 +782,7 @@ def nextLocation(lon: float, lat: float, speed: float, bearing: float, time:int=
         sql = f"""
         WITH 
             Q1 AS (
-                SELECT ST_SetSRID(ST_Project('POINT({lon} {lat})'::geometry, {speed*time}, radians({bearing}))::geometry,4326
+                SELECT ST_SetSRID(ST_Project('POINT({lon} {lat})'::geometry, {speed*time}, {bearing})::geometry,4326
                 
                 ) as p2
             )
