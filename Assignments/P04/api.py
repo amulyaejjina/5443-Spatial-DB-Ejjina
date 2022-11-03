@@ -480,7 +480,7 @@ class MissileServer(object):
                 current_time = now.strftime("%H:%M:%S")
                 updatesql = f"""UPDATE public.missile_data
                 SET current_loc = 'SRID=4326;POINT({nextPoint[0][0]} {nextPoint[0][1]})'::geometry, "current_time"= '{current_time}'
-                ,altitude= {modified_alt}
+                ,altitude= {modified_alt},bearing = {bearing}
                 WHERE missile_id = {id};"""
                 cur.execute(updatesql)
         
