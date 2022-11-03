@@ -425,7 +425,7 @@ class MissileServer(object):
         # Format of rows fetched fromt table - [(),(),()]
     
         with DatabaseCursor(CONFIGDOTJSON) as cur:
-            getTable = f"""SELECT * FROM public.missile_data;"""
+            getTable = f"""SELECT * FROM public.missile_data WHERE active = true;"""
             cur.execute(getTable)
             missileList = cur.fetchall()
 
@@ -441,7 +441,7 @@ class MissileServer(object):
                 targetID = eachrow[3]
                 speed = eachrow[7]
                 alt = eachrow[8]
-                bearing = float(eachrow[11])
+                #bearing = float(eachrow[11])
                 droprate = eachrow[9]
 
                 statuss = False
@@ -460,6 +460,18 @@ class MissileServer(object):
                 WHERE missile_id={id};"""
                 cur.execute(getlatlon)
                 currentlon,currentlat = cur.fetchall()[0]
+
+                # turns out bearing is not constant throughout
+                # updating bearing each time
+                getlatlontarget = f"""SELECT ST_X(target_city) as x , ST_Y(target_city) as y 
+                FROM public.missile_data
+                WHERE missile_id={id};"""
+                cur.execute(getlatlontarget)
+                targetlon,targetlat = cur.fetchall()[0]
+
+                currentPoint = Position(lon=currentlon, lat=currentlat, altitude=alt, time=1)
+                targetPoint = Position(lon=targetlon, lat=targetlat, altitude=0, time=4)
+                bearing = compass_bearing(currentPoint, targetPoint)
 
                 # Find next location based on 1 sec time elapsed assumption
                 # returns a point geometry,assuming drop rate  -100m/sec
