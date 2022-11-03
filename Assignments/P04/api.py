@@ -338,6 +338,12 @@ class MissileServer(object):
         # Loop for 6 iterations (this loop has to run every MISSILE_GEN_INTERVAL)
         global participants
         directions = ["East","West","North","South"]
+        listofMissiles = list(missile_data['missiles'].keys())
+        missile_vals = missile_data['missiles'].values()
+        missile_speeds = [i["speed"] for i in missile_vals]
+        tot = sum(missile_speeds)
+        weighted_prefs_for_missiles = [tot-speed for speed in missile_speeds]
+
         with DatabaseCursor(CONFIGDOTJSON) as cur:
             cur.execute("SELECT id, cities FROM public.participants WHERE active = True")
             activeParticipants = cur.fetchall()
@@ -367,8 +373,7 @@ class MissileServer(object):
                 targetPoint = Position(lon=targetCity_lon, lat=targetCity_lat, altitude=0, time=4)
                 bearing = compass_bearing(startPoint, targetPoint)
 
-                listofMissiles = list(missile_data['missiles'].keys())
-                missileType = random.choices(listofMissiles)
+                missileType = random.choices(listofMissiles,weights = tuple(weighted_prefs_for_missiles))
                 speedinms = missile_data["speed"][missile_data["missiles"][missileType[0]]["speed"]]['ms']
 
                 findtargetID = f"""SELECT id FROM public.cities
