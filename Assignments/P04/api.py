@@ -1,5 +1,7 @@
+from ctypes.wintypes import tagRECT
 from imp import source_from_cache
 import math
+from typing import overload
 from fastapi import FastAPI, BackgroundTasks
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -551,7 +553,16 @@ class MissileServer(object):
             #  update our missile table with blast_time = curr_time + time_taken 
         # else:
             # dont update anything, or maintain a separate table for failed missiles if we want to send a notification after some time.
-
+            # team_id:  int
+            # target_missile_id: int
+            # missile_type: str 
+            # fired_time: str  
+            # firedfrom_lat: float
+            # firedfrom_lon: float 
+            # aim_lat: float 
+            # aim_lon: float 
+            # expected_hit_time: str
+            # target_alt: float 
         # decrement the missile based on missile_type from team_id's arsenal
         sql = f"""SELECT * FROM public.missile_data WHERE missile_id = {solution_data.target_missile_id}"""
         with DatabaseCursor(CONFIGDOTJSON) as cur:
@@ -561,67 +572,176 @@ class MissileServer(object):
             current_lon = cur.fetchall()[0][0]
             current_lat = cur.execute(f"SELECT ST_Y('{missile_info[2]}');")
             current_lat = cur.fetchall()[0][0]
-            target_lon = cur.execute(f"SELECT ST_X('{missile_info[4]}');")
-            target_lon = cur.fetchall()[0][0]
-            target_lat = cur.execute(f"SELECT ST_Y('{missile_info[4]}');")
-            target_lat = cur.fetchall()[0][0]
             altitude = missile_info[8]
             attack_speed = missile_info[7]
             current_time = missile_info[1]
+            attack_bearing = missile_info[11]
+            attack_type = missile_info[12]
+            attack_droprate = missile_info[9]
 
-            #See if points intersect
-            intersect = f"""SELECT ST_3DIntersects(
-                    'SRID=4326;LINESTRING(
-                        {solution_data.firedfrom_lon} {solution_data.firedfrom_lat} 0, {solution_data.aim_lon} {solution_data.aim_lat} {solution_data.target_alt})'::geometry,
-                    'SRID=4326;LINESTRING(
-                        {current_lon} {current_lat} {altitude}, {target_lon} {target_lat} 0)'::geometry
-                    );"""
+
+            #Get how long until missiles are supposed to hit each other
+            #yes this is stupid but I can't use total_seconds without converting to a timedelta and I don't want
+            #to do that. I'm stuck between a rock and a hard place \o-o\
+            format_data = "%d/%m/%y %H:%M:%S.%f"
             
-            cur.execute(intersect)
-            will_intersect = cur.fetchall()[0][0]
+            # Using strptime with datetime we will format
+            # string into datetime
+            target_time = datetime.strptime(solution_data.expected_hit_time, format_data)
+            current_time = (current_time.hour * 60 + current_time.minute) * 60 + current_time.second
+            target_time = (target_time.hour * 60 + target_time.minute) * 60 + target_time.second
+            hit_time = target_time - current_time
+            #determine where target_missile is at hit_time
+            select = "st_x(p2) as x,st_y(p2) as y"
+            sql = f"""WITH Q1 AS (
+                SELECT ST_SetSRID(ST_Project('POINT({current_lon} {current_lat})'::geography, {attack_speed*hit_time}, {attack_bearing})::geometry,4326
+                ) as p2
+                )
+                SELECT {select}
+                FROM Q1 """
+            cur.execute(sql)
+            attack_loc = cur.fetchall()[0]
+
+            #determine where defender missile is at this time as well
+                #bearing of defender_missile
+            sql = f""" SELECT ST_Azimuth(ST_Point(
+                {solution_data.firedfrom_lon}, {solution_data.firedfrom_lat}
+                ),  
+                ST_Point(
+                    {solution_data.aim_lon}, {solution_data.aim_lat}
+                    ))"""
+            cur.execute(sql)
+            defend_bearing = cur.fetchall()[0][0]
+            defend_speed = missile_data["speed"][missile_data["missiles"][solution_data.missile_type]["speed"]]['ms']
+            select = "st_x(p2) as x,st_y(p2) as y"
+            sql = f"""WITH Q1 AS (
+                SELECT ST_SetSRID(ST_Project(
+                    'POINT({solution_data.firedfrom_lon} {solution_data.firedfrom_lat})'::geography, 
+                    {defend_speed*hit_time}, {defend_bearing})::geometry,4326
+                ) as p2
+                )
+                SELECT {select}
+                FROM Q1 """
+            cur.execute(sql)
+            defend_loc = cur.fetchall()[0]
+
+            #get blast radius bounding box for both points
+            attack_blast = missile_data["blast"][missile_data["missiles"][attack_type]["blast"]] / 10
+            defend_blast = missile_data["blast"][missile_data["missiles"][solution_data.missile_type]["blast"]] / 10
+
+            #Bounding box coordinates made using this link:
+            #link: https://stackoverflow.com/questions/7477003/calculating-new-longitude-latitude-from-old-n-meters
+            lat_attack_blast = attack_blast / 111.32
+            lon_attack_blast = lat_attack_blast / cos(attack_loc[1] * 0.01745)
+            attack_xmin = attack_loc[1] - lat_attack_blast
+            attack_xmax = attack_loc[1] + lat_attack_blast
+            attack_ymin = attack_loc[0] - lon_attack_blast
+            attack_ymax = attack_loc[0] + lon_attack_blast
+            sql = f"""SELECT ST_AsText(ST_Envelope('POLYGON(
+                ({attack_ymin} {attack_xmin},
+                 {attack_ymin} {attack_xmax},
+                 {attack_ymax} {attack_xmax},
+                 {attack_ymax} {attack_xmin},
+                 {attack_ymin} {attack_xmin}
+                 ))'::geometry));"""
+            cur.execute(sql)
+            attack_bbox = cur.fetchall()[0][0]
+
+            lat_defend_blast = defend_blast / 111.32
+            lon_defend_blast = lat_defend_blast / cos(defend_loc[1] * 0.01745)
+            defend_xmin = defend_loc[1] - lat_defend_blast
+            defend_xmax = defend_loc[1] + lat_defend_blast
+            defend_ymin = defend_loc[0] - lon_defend_blast
+            defend_ymax = defend_loc[0] + lon_defend_blast
+            sql = f"""SELECT ST_AsText(ST_Envelope('POLYGON(
+                ({defend_ymin} {defend_xmin},
+                 {defend_ymin} {defend_xmax},
+                 {defend_ymax} {defend_xmax},
+                 {defend_ymax} {defend_xmin},
+                 {defend_ymin} {defend_xmin}
+                 ))'::geometry));"""
+            cur.execute(sql)
+            defend_bbox = cur.fetchall()[0][0]
+
+            #See if the blast radius of both missiles overlap at the given time
+            sql = f"""SELECT ST_Overlaps(a,b) AS overlaps
+            FROM (SELECT ST_GeomFromText('{attack_bbox}') As a,
+            ST_GeomFromText('{defend_bbox}')  AS b) AS t"""
+            cur.execute(sql)
+            overlap = cur.fetchall()[0][0]
             
-            #if intersects then find when both missiles reach the intersection
-            if(will_intersect):
-                #calculate intersection point using postgis
-                intersect = f"""SELECT ST_AsText(
-                    ST_3DIntersection(
-                        'SRID=4326;LINESTRING(
-                            {solution_data.firedfrom_lon} {solution_data.firedfrom_lat} 0, {solution_data.aim_lon} {solution_data.aim_lat} {solution_data.target_alt})'::geometry,
-                        'SRID=4326;LINESTRING(
-                            {current_lon} {current_lat} {altitude}, {target_lon} {target_lat} 0)'::geometry
-                    ));"""
-                cur.execute(intersect)
-                intersect_point = cur.fetchall()[0][0]
+            #missiles blasts do not overlap at given time
+            if(overlap == False):
+                return {"Missed" : " Your missile did not hit its target"}
 
-                #get time it takes our missile to reach that point. 2163 is units in meters
-                attacker_distance = f"""SELECT ST_3DDistance(
-                    ST_Transform('SRID=4326;POINT({current_lon} {current_lat} {altitude})'::geometry,2163),
-                    ST_Transform("{intersect_point}")'::geometry,2163)
-                    )"""
+            #Check to see if altitudes are within range as well    
+            else:
+                #drop down to expected altitude
+                attack_altitude = altitude - (attack_droprate * attack_speed)
+                defend_altitude  = solution_data.target_alt
+                altitude_diff = abs(attack_altitude - defend_altitude)
 
-                defender_distance = f"""SELECT ST_3DDistance(
-                    ST_Transform('SRID=4326;POINT({solution_data.firedfrom_lon} {solution_data.firedfrom_lat} 0)'::geometry,2163),
-                    ST_Transform("{intersect_point}")'::geometry,2163)
-                    )"""
-                
-                cur.execute(attacker_distance)
-                attacker_distance = cur.fetchall()[0][0]
-                cur.execute(defender_distance)
-                defender_distance = cur.fetchall()[0][0]
-
-                attack_time_taken = attacker_distance / attack_speed
-                defend_time_taken = defender_distance / solution_data.speed
-
-                #time our missile will reach intersection
-                attack_intersect_time = timedelta(seconds = attack_time_taken) + datetime.strptime(current_time)
-                defend_intersect_time = timedelta(seconds= defend_time_taken) + datetime.strptime(solution_data.fired_time)
-                
-                defend_low_buffer = defend_intersect_time - timedelta(seconds = 1)
-                defend_high_buffer = defend_intersect_time + timedelta(seconds = 1)
-
-                if(defend_low_buffer <= attack_intersect_time <= defend_high_buffer):
+                #altitude is within blast range
+                if(altitude_diff <= attack_blast * 5 or altitude_diff <= defend_blast * 5):
                     cur.execute(f"UPDATE public.defender_stats SET missiles_hit_by_team = missiles_hit_by_team + 1 WHERE team_id = {solution_data.team_id};")
-                    return {"Congrats" : "Missile Hit Its Target!!"}
+                    return {"BOOM!" : "Missile has been struck down! Congrats!!"}
+                else:
+                    return {"Missed" : " Your missile did not hit its target"}
+
+
+            # #See if points intersect
+            # intersect = f"""SELECT ST_3DIntersects(
+            #         'SRID=4326;LINESTRING(
+            #             {solution_data.firedfrom_lon} {solution_data.firedfrom_lat} 0, {solution_data.aim_lon} {solution_data.aim_lat} {solution_data.target_alt})'::geometry,
+            #         'SRID=4326;LINESTRING(
+            #             {current_lon} {current_lat} {altitude}, {target_lon} {target_lat} 0)'::geometry
+            #         );"""
+            
+            # cur.execute(intersect)
+            # will_intersect = cur.fetchall()[0][0]
+            
+            # #if intersects then find when both missiles reach the intersection
+            # if(will_intersect):
+            #     #calculate intersection point using postgis
+            #     intersect = f"""SELECT ST_AsText(
+            #         ST_3DIntersection(
+            #             'SRID=4326;LINESTRING(
+            #                 {solution_data.firedfrom_lon} {solution_data.firedfrom_lat} 0, {solution_data.aim_lon} {solution_data.aim_lat} {solution_data.target_alt})'::geometry,
+            #             'SRID=4326;LINESTRING(
+            #                 {current_lon} {current_lat} {altitude}, {target_lon} {target_lat} 0)'::geometry
+            #         ));"""
+            #     cur.execute(intersect)
+            #     intersect_point = cur.fetchall()[0][0]
+
+            #     #get time it takes our missile to reach that point. 2163 is units in meters
+            #     attacker_distance = f"""SELECT ST_3DDistance(
+            #         ST_Transform('SRID=4326;POINT({current_lon} {current_lat} {altitude})'::geometry,2163),
+            #         ST_Transform("{intersect_point}")'::geometry,2163)
+            #         )"""
+
+            #     defender_distance = f"""SELECT ST_3DDistance(
+            #         ST_Transform('SRID=4326;POINT({solution_data.firedfrom_lon} {solution_data.firedfrom_lat} 0)'::geometry,2163),
+            #         ST_Transform("{intersect_point}")'::geometry,2163)
+            #         )"""
+                
+            #     cur.execute(attacker_distance)
+            #     attacker_distance = cur.fetchall()[0][0]
+            #     cur.execute(defender_distance)
+            #     defender_distance = cur.fetchall()[0][0]
+
+            #     attack_time_taken = attacker_distance / attack_speed
+            #     defend_time_taken = defender_distance / solution_data.speed
+
+            #     #time our missile will reach intersection
+            #     attack_intersect_time = timedelta(seconds = attack_time_taken) + datetime.strptime(current_time)
+            #     defend_intersect_time = timedelta(seconds= defend_time_taken) + datetime.strptime(solution_data.fired_time)
+                
+            #     defend_low_buffer = defend_intersect_time - timedelta(seconds = 1)
+            #     defend_high_buffer = defend_intersect_time + timedelta(seconds = 1)
+
+            #     if(defend_low_buffer <= attack_intersect_time <= defend_high_buffer):
+            #         cur.execute(f"UPDATE public.defender_stats SET missiles_hit_by_team = missiles_hit_by_team + 1 WHERE team_id = {solution_data.team_id};")
+            #         return {"Congrats" : "Missile Hit Its Target!!"}
 
                 # startPoint = Position(lon = solution_data.firefrom_lon, lat = solution_data.firefrom_lat, altitude = 0)
                 # xyz = f"""SELECT ST_X("{intersect_point}") as x, ST_Y("{intersect_point}" as y, ST_Z("{intersect_point}") as z;"""
@@ -638,11 +758,11 @@ class MissileServer(object):
                 # cur.execute(project)
                 # cur.fetchall()[0]
                 #if(intersect_time == solution_data.expected_hit_time):
-                else:
-                    return{"Missed" : " Your missile did not hit its target"}
+            #     else:
+            #         return{"Missed" : " Your missile did not hit its target"}
                 
-            else:
-                return {"Missed" : " Your missile did not hit its target"}
+            # else:
+            #     return {"Missed" : " Your missile did not hit its target"}
 
 
     def registerDefender(self, id):
@@ -933,7 +1053,6 @@ class fireSol(BaseModel):
     aim_lat: float 
     aim_lon: float 
     expected_hit_time: str
-    speed: float 
     target_alt: float 
 
 @app.post("/FIRE_SOLUTION/")
