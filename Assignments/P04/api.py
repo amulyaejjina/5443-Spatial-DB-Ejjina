@@ -587,12 +587,13 @@ class MissileServer(object):
             try:
                 # Using strptime with datetime we will format
                 # string into datetime
+                t_time = target_time
                 target_time = datetime.strptime(solution_data.expected_hit_time, format_data)
                 current_time = (current_time.hour * 60 + current_time.minute) * 60 + current_time.second
                 target_time = (target_time.hour * 60 + target_time.minute) * 60 + target_time.second
                 hit_time = target_time - current_time
             except Exception:
-                return{'invalid time' : target_time}
+                return{'invalid time' : t_time}
             try:
                 # print("----------  here -------------")
                 # print(current_lon)
