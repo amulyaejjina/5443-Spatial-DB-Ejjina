@@ -54,8 +54,8 @@ app = FastAPI(
  | |) / _ \| |/ _ \
  |___/_/ \_\_/_/ \_\
 """
-CONFIGDOTJSON = '/home/attack/config.json'  #Server config file
-#CONFIGDOTJSON = "config.json"               #testing config file
+#CONFIGDOTJSON = '/home/attack/config.json'  #Server config file
+CONFIGDOTJSON = "config.json"               #testing config file
 
 # stores defenders playing missile command
 participants = {}
@@ -617,7 +617,7 @@ class MissileServer(object):
 
                 attack_loc = cur.fetchall()[0]
             except Exception:
-                print('attack location sql error')
+                return {'attack location sql error'}
             
             try:
                 #print(attack_loc)
@@ -654,18 +654,19 @@ class MissileServer(object):
                 cur.execute(sql2)
                 defend_loc = cur.fetchall()[0]
             except Exception:
-                print('defense location sql error')
+                return {'defense location sql error'}
 
             try:
                 #get blast radius bounding box for both points
                 attack_blast = missile_data["blast"][missile_data["missiles"][attack_type]["blast"]] / 10
                 defend_blast = missile_data["blast"][missile_data["missiles"][solution_data.missile_type]["blast"]] / 10
             except Exception:
-                print('missile is not in the arsenal')
+                return {'missile is not in the arsenal'}
 
             try:
                 #Bounding box coordinates made using this link:
                 #link: https://stackoverflow.com/questions/7477003/calculating-new-longitude-latitude-from-old-n-meters
+                #I messed up so xmin/xmax is for lat and ymin/ymax is for lon
                 lat_attack_blast = attack_blast / 111.32
                 lon_attack_blast = lat_attack_blast / cos(attack_loc[1] * 0.01745)
                 attack_xmin = attack_loc[1] - lat_attack_blast
@@ -682,7 +683,7 @@ class MissileServer(object):
                 cur.execute(sql)
                 attack_bbox = cur.fetchall()[0][0]
             except Exception:
-                print('attack bounding box error')
+                return {'attack bounding box error'}
 
             try:
                 lat_defend_blast = defend_blast / 111.32
@@ -701,7 +702,7 @@ class MissileServer(object):
                 cur.execute(sql)
                 defend_bbox = cur.fetchall()[0][0]
             except Exception:
-                print('defend bounding box error')
+                return {'defend bounding box error'}
 
             try:
                 #See if the blast radius of both missiles overlap at the given time
@@ -711,7 +712,7 @@ class MissileServer(object):
                 cur.execute(sql)
                 overlap = cur.fetchall()[0][0]
             except Exception:
-                print('error at overlap')
+                return {'error at overlap'}
                 
             try:
                 #missiles blasts do not overlap at given time
@@ -726,13 +727,13 @@ class MissileServer(object):
                     altitude_diff = abs(attack_altitude - defend_altitude)
 
                     #altitude is within blast range
-                    if(altitude_diff <= attack_blast * 5 or altitude_diff <= defend_blast * 5):
+                    if(altitude_diff <= (attack_blast * 5) or altitude_diff <= (defend_blast * 5)):
                         cur.execute(f"UPDATE public.defender_stats SET missiles_hit_by_team = missiles_hit_by_team + 1 WHERE team_id = {solution_data.team_id};")
-                        return {"BOOM!" : "Missile has been struck down! Congrats!!"}
+                        return {"BOOM!" : "Missile has been struck down! Congrats!! We made it here!!!"}
                     else:
                         return {"Missed" : " Your missile did not hit its target. The coordinates were correct but the altitude was not in blast range."}
             except Exception:
-                print('error with returning')
+                return {'error with returning'}
 
             # #See if points intersect
             # intersect = f"""SELECT ST_3DIntersects(
