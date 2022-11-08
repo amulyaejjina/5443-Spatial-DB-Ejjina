@@ -584,135 +584,155 @@ class MissileServer(object):
             #yes this is stupid but I can't use total_seconds without converting to a timedelta and I don't want
             #to do that. I'm stuck between a rock and a hard place \o-o\
             format_data = "%d/%m/%y %H:%M:%S.%f"
+            try:
+                # Using strptime with datetime we will format
+                # string into datetime
+                target_time = datetime.strptime(solution_data.expected_hit_time, format_data)
+                current_time = (current_time.hour * 60 + current_time.minute) * 60 + current_time.second
+                target_time = (target_time.hour * 60 + target_time.minute) * 60 + target_time.second
+                hit_time = target_time - current_time
+                # print("----------  here -------------")
+                # print(current_lon)
+                # print(current_lat)
+                #determine where target_missile is at hit_time
+                select = "st_x(p2) as x,st_y(p2) as y"
+                sql = f"""WITH Q1 AS (
+                    SELECT ST_SetSRID(ST_Project('POINT({current_lon} {current_lat})'::geography, {attack_speed*(hit_time/2)}, {attack_bearing})::geometry,4326
+                    ) as p2
+                    )
+                    SELECT {select}
+                    FROM Q1 """
+                cur.execute(sql)
+                intermediate_loc = cur.fetchall()[0]
+                #print(intermediate_loc)
+                select = "st_x(p2) as x,st_y(p2) as y"
+                sql2 = f"""WITH Q1 AS (
+                    SELECT ST_SetSRID(ST_Project('POINT({intermediate_loc[0]} {intermediate_loc[1]})'::geography, {attack_speed*(hit_time/2)}, {attack_bearing})::geometry,4326
+                    ) as p2
+                    )
+                    SELECT {select}
+                    FROM Q1 """
+                cur.execute(sql2)
+
+
+                attack_loc = cur.fetchall()[0]
+            except Exception:
+                print('attack location sql error')
             
-            # Using strptime with datetime we will format
-            # string into datetime
-            target_time = datetime.strptime(solution_data.expected_hit_time, format_data)
-            current_time = (current_time.hour * 60 + current_time.minute) * 60 + current_time.second
-            target_time = (target_time.hour * 60 + target_time.minute) * 60 + target_time.second
-            hit_time = target_time - current_time
-            # print("----------  here -------------")
-            # print(current_lon)
-            # print(current_lat)
-            #determine where target_missile is at hit_time
-            select = "st_x(p2) as x,st_y(p2) as y"
-            sql = f"""WITH Q1 AS (
-                SELECT ST_SetSRID(ST_Project('POINT({current_lon} {current_lat})'::geography, {attack_speed*(hit_time/2)}, {attack_bearing})::geometry,4326
-                ) as p2
-                )
-                SELECT {select}
-                FROM Q1 """
-            cur.execute(sql)
-            intermediate_loc = cur.fetchall()[0]
-            #print(intermediate_loc)
-            select = "st_x(p2) as x,st_y(p2) as y"
-            sql2 = f"""WITH Q1 AS (
-                SELECT ST_SetSRID(ST_Project('POINT({intermediate_loc[0]} {intermediate_loc[1]})'::geography, {attack_speed*(hit_time/2)}, {attack_bearing})::geometry,4326
-                ) as p2
-                )
-                SELECT {select}
-                FROM Q1 """
-            cur.execute(sql2)
+            try:
+                #print(attack_loc)
+                #determine where defender missile is at this time as well
+                    #bearing of defender_missile
+                sql = f""" SELECT ST_Azimuth(ST_Point(
+                    {solution_data.firedfrom_lon}, {solution_data.firedfrom_lat}
+                    ),  
+                    ST_Point(
+                        {solution_data.aim_lon}, {solution_data.aim_lat}
+                        ))"""
+                cur.execute(sql)
+                defend_bearing = cur.fetchall()[0][0]
+                defend_speed = missile_data["speed"][missile_data["missiles"][solution_data.missile_type]["speed"]]['ms']
+                select = "st_x(p2) as x,st_y(p2) as y"
+                sql = f"""WITH Q1 AS (
+                    SELECT ST_SetSRID(ST_Project(
+                        'POINT({solution_data.firedfrom_lon} {solution_data.firedfrom_lat})'::geography, 
+                        {defend_speed*(hit_time/2)}, {defend_bearing})::geometry,4326
+                    ) as p2
+                    )
+                    SELECT {select}
+                    FROM Q1 """
+                cur.execute(sql)
+                intermediate_loc2 = cur.fetchall()[0]
+                sql2 = f"""WITH Q1 AS (
+                    SELECT ST_SetSRID(ST_Project(
+                        'POINT({intermediate_loc2[0]} {intermediate_loc2[1]})'::geography, 
+                        {defend_speed*(hit_time/2)}, {defend_bearing})::geometry,4326
+                    ) as p2
+                    )
+                    SELECT {select}
+                    FROM Q1 """
+                cur.execute(sql2)
+                defend_loc = cur.fetchall()[0]
+            except Exception:
+                print('defense location sql error')
 
+            try:
+                #get blast radius bounding box for both points
+                attack_blast = missile_data["blast"][missile_data["missiles"][attack_type]["blast"]] / 10
+                defend_blast = missile_data["blast"][missile_data["missiles"][solution_data.missile_type]["blast"]] / 10
+            except Exception:
+                print('missile is not in the arsenal')
 
-            attack_loc = cur.fetchall()[0]
-            #print(attack_loc)
-            #determine where defender missile is at this time as well
-                #bearing of defender_missile
-            sql = f""" SELECT ST_Azimuth(ST_Point(
-                {solution_data.firedfrom_lon}, {solution_data.firedfrom_lat}
-                ),  
-                ST_Point(
-                    {solution_data.aim_lon}, {solution_data.aim_lat}
-                    ))"""
-            cur.execute(sql)
-            defend_bearing = cur.fetchall()[0][0]
-            defend_speed = missile_data["speed"][missile_data["missiles"][solution_data.missile_type]["speed"]]['ms']
-            select = "st_x(p2) as x,st_y(p2) as y"
-            sql = f"""WITH Q1 AS (
-                SELECT ST_SetSRID(ST_Project(
-                    'POINT({solution_data.firedfrom_lon} {solution_data.firedfrom_lat})'::geography, 
-                    {defend_speed*(hit_time/2)}, {defend_bearing})::geometry,4326
-                ) as p2
-                )
-                SELECT {select}
-                FROM Q1 """
-            cur.execute(sql)
-            intermediate_loc2 = cur.fetchall()[0]
-            sql2 = f"""WITH Q1 AS (
-                SELECT ST_SetSRID(ST_Project(
-                    'POINT({intermediate_loc2[0]} {intermediate_loc2[1]})'::geography, 
-                    {defend_speed*(hit_time/2)}, {defend_bearing})::geometry,4326
-                ) as p2
-                )
-                SELECT {select}
-                FROM Q1 """
-            cur.execute(sql2)
-            defend_loc = cur.fetchall()[0]
+            try:
+                #Bounding box coordinates made using this link:
+                #link: https://stackoverflow.com/questions/7477003/calculating-new-longitude-latitude-from-old-n-meters
+                lat_attack_blast = attack_blast / 111.32
+                lon_attack_blast = lat_attack_blast / cos(attack_loc[1] * 0.01745)
+                attack_xmin = attack_loc[1] - lat_attack_blast
+                attack_xmax = attack_loc[1] + lat_attack_blast
+                attack_ymin = attack_loc[0] - lon_attack_blast
+                attack_ymax = attack_loc[0] + lon_attack_blast
+                sql = f"""SELECT ST_AsText(ST_Envelope('POLYGON(
+                    ({attack_ymin} {attack_xmin},
+                    {attack_ymin} {attack_xmax},
+                    {attack_ymax} {attack_xmax},
+                    {attack_ymax} {attack_xmin},
+                    {attack_ymin} {attack_xmin}
+                    ))'::geometry));"""
+                cur.execute(sql)
+                attack_bbox = cur.fetchall()[0][0]
+            except Exception:
+                print('attack bounding box error')
 
-            #get blast radius bounding box for both points
-            attack_blast = missile_data["blast"][missile_data["missiles"][attack_type]["blast"]] / 10
-            defend_blast = missile_data["blast"][missile_data["missiles"][solution_data.missile_type]["blast"]] / 10
+            try:
+                lat_defend_blast = defend_blast / 111.32
+                lon_defend_blast = lat_defend_blast / cos(defend_loc[1] * 0.01745)
+                defend_xmin = defend_loc[1] - lat_defend_blast
+                defend_xmax = defend_loc[1] + lat_defend_blast
+                defend_ymin = defend_loc[0] - lon_defend_blast
+                defend_ymax = defend_loc[0] + lon_defend_blast
+                sql = f"""SELECT ST_AsText(ST_Envelope('POLYGON(
+                    ({defend_ymin} {defend_xmin},
+                    {defend_ymin} {defend_xmax},
+                    {defend_ymax} {defend_xmax},
+                    {defend_ymax} {defend_xmin},
+                    {defend_ymin} {defend_xmin}
+                    ))'::geometry));"""
+                cur.execute(sql)
+                defend_bbox = cur.fetchall()[0][0]
+            except Exception:
+                print('defend bounding box error')
 
-            #Bounding box coordinates made using this link:
-            #link: https://stackoverflow.com/questions/7477003/calculating-new-longitude-latitude-from-old-n-meters
-            lat_attack_blast = attack_blast / 111.32
-            lon_attack_blast = lat_attack_blast / cos(attack_loc[1] * 0.01745)
-            attack_xmin = attack_loc[1] - lat_attack_blast
-            attack_xmax = attack_loc[1] + lat_attack_blast
-            attack_ymin = attack_loc[0] - lon_attack_blast
-            attack_ymax = attack_loc[0] + lon_attack_blast
-            sql = f"""SELECT ST_AsText(ST_Envelope('POLYGON(
-                ({attack_ymin} {attack_xmin},
-                 {attack_ymin} {attack_xmax},
-                 {attack_ymax} {attack_xmax},
-                 {attack_ymax} {attack_xmin},
-                 {attack_ymin} {attack_xmin}
-                 ))'::geometry));"""
-            cur.execute(sql)
-            attack_bbox = cur.fetchall()[0][0]
+            try:
+                #See if the blast radius of both missiles overlap at the given time
+                sql = f"""SELECT ST_Overlaps(a,b) AS overlaps
+                FROM (SELECT ST_GeomFromText('{attack_bbox}') As a,
+                ST_GeomFromText('{defend_bbox}')  AS b) AS t"""
+                cur.execute(sql)
+                overlap = cur.fetchall()[0][0]
+            except Exception:
+                print('error at overlap')
+                
+            try:
+                #missiles blasts do not overlap at given time
+                if(overlap == False):
+                    return {"Missed" : " Your missile did not hit its target. The longitude and latitude were not in blast range."}
 
-            lat_defend_blast = defend_blast / 111.32
-            lon_defend_blast = lat_defend_blast / cos(defend_loc[1] * 0.01745)
-            defend_xmin = defend_loc[1] - lat_defend_blast
-            defend_xmax = defend_loc[1] + lat_defend_blast
-            defend_ymin = defend_loc[0] - lon_defend_blast
-            defend_ymax = defend_loc[0] + lon_defend_blast
-            sql = f"""SELECT ST_AsText(ST_Envelope('POLYGON(
-                ({defend_ymin} {defend_xmin},
-                 {defend_ymin} {defend_xmax},
-                 {defend_ymax} {defend_xmax},
-                 {defend_ymax} {defend_xmin},
-                 {defend_ymin} {defend_xmin}
-                 ))'::geometry));"""
-            cur.execute(sql)
-            defend_bbox = cur.fetchall()[0][0]
-
-            #See if the blast radius of both missiles overlap at the given time
-            sql = f"""SELECT ST_Overlaps(a,b) AS overlaps
-            FROM (SELECT ST_GeomFromText('{attack_bbox}') As a,
-            ST_GeomFromText('{defend_bbox}')  AS b) AS t"""
-            cur.execute(sql)
-            overlap = cur.fetchall()[0][0]
-            
-            #missiles blasts do not overlap at given time
-            if(overlap == False):
-                return {"Missed" : " Your missile did not hit its target. The longitude and latitude were not in blast range."}
-
-            #Check to see if altitudes are within range as well    
-            else:
-                #drop down to expected altitude
-                attack_altitude = altitude - (attack_droprate * attack_speed)
-                defend_altitude  = solution_data.target_alt
-                altitude_diff = abs(attack_altitude - defend_altitude)
-
-                #altitude is within blast range
-                if(altitude_diff <= attack_blast * 5 or altitude_diff <= defend_blast * 5):
-                    cur.execute(f"UPDATE public.defender_stats SET missiles_hit_by_team = missiles_hit_by_team + 1 WHERE team_id = {solution_data.team_id};")
-                    return {"BOOM!" : "Missile has been struck down! Congrats!!"}
+                #Check to see if altitudes are within range as well    
                 else:
-                    return {"Missed" : " Your missile did not hit its target. The coordinates were correct but the altitude was not in blast range."}
+                    #drop down to expected altitude
+                    attack_altitude = altitude - (attack_droprate * attack_speed)
+                    defend_altitude  = solution_data.target_alt
+                    altitude_diff = abs(attack_altitude - defend_altitude)
 
+                    #altitude is within blast range
+                    if(altitude_diff <= attack_blast * 5 or altitude_diff <= defend_blast * 5):
+                        cur.execute(f"UPDATE public.defender_stats SET missiles_hit_by_team = missiles_hit_by_team + 1 WHERE team_id = {solution_data.team_id};")
+                        return {"BOOM!" : "Missile has been struck down! Congrats!!"}
+                    else:
+                        return {"Missed" : " Your missile did not hit its target. The coordinates were correct but the altitude was not in blast range."}
+            except Exception:
+                print('error with returning')
 
             # #See if points intersect
             # intersect = f"""SELECT ST_3DIntersects(
