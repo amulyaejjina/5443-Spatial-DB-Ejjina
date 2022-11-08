@@ -602,7 +602,10 @@ class MissileServer(object):
                     )
                     SELECT {select}
                     FROM Q1 """
-                cur.execute(sql)
+                try:
+                    cur.execute(sql)
+                except Exception:
+                    return {'psycopg error at sql query run'}
                 intermediate_loc = cur.fetchall()[0]
                 #print(intermediate_loc)
                 select = "st_x(p2) as x,st_y(p2) as y"
@@ -612,7 +615,10 @@ class MissileServer(object):
                     )
                     SELECT {select}
                     FROM Q1 """
-                cur.execute(sql2)
+                try:
+                    cur.execute(sql2)
+                except Exception:
+                    return {'psycopg error at sql query run'}
 
 
                 attack_loc = cur.fetchall()[0]
