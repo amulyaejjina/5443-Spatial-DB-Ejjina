@@ -697,7 +697,7 @@ class MissileServer(object):
             
             #missiles blasts do not overlap at given time
             if(overlap == False):
-                return {"Missed" : " Your missile did not hit its target"}
+                return {"Missed" : " Your missile did not hit its target. The longitude and latitude were not in blast range."}
 
             #Check to see if altitudes are within range as well    
             else:
@@ -711,7 +711,7 @@ class MissileServer(object):
                     cur.execute(f"UPDATE public.defender_stats SET missiles_hit_by_team = missiles_hit_by_team + 1 WHERE team_id = {solution_data.team_id};")
                     return {"BOOM!" : "Missile has been struck down! Congrats!!"}
                 else:
-                    return {"Missed" : " Your missile did not hit its target"}
+                    return {"Missed" : " Your missile did not hit its target. The coordinates were correct but the altitude was not in blast range."}
 
 
             # #See if points intersect
