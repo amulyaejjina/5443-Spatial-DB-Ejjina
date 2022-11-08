@@ -591,17 +591,32 @@ class MissileServer(object):
             current_time = (current_time.hour * 60 + current_time.minute) * 60 + current_time.second
             target_time = (target_time.hour * 60 + target_time.minute) * 60 + target_time.second
             hit_time = target_time - current_time
+            # print("----------  here -------------")
+            # print(current_lon)
+            # print(current_lat)
             #determine where target_missile is at hit_time
             select = "st_x(p2) as x,st_y(p2) as y"
             sql = f"""WITH Q1 AS (
-                SELECT ST_SetSRID(ST_Project('POINT({current_lon} {current_lat})'::geography, {attack_speed*hit_time}, {attack_bearing})::geometry,4326
+                SELECT ST_SetSRID(ST_Project('POINT({current_lon} {current_lat})'::geography, {attack_speed*(hit_time/2)}, {attack_bearing})::geometry,4326
                 ) as p2
                 )
                 SELECT {select}
                 FROM Q1 """
             cur.execute(sql)
-            attack_loc = cur.fetchall()[0]
+            intermediate_loc = cur.fetchall()[0]
+            #print(intermediate_loc)
+            select = "st_x(p2) as x,st_y(p2) as y"
+            sql2 = f"""WITH Q1 AS (
+                SELECT ST_SetSRID(ST_Project('POINT({intermediate_loc[0]} {intermediate_loc[1]})'::geography, {attack_speed*(hit_time/2)}, {attack_bearing})::geometry,4326
+                ) as p2
+                )
+                SELECT {select}
+                FROM Q1 """
+            cur.execute(sql2)
 
+
+            attack_loc = cur.fetchall()[0]
+            #print(attack_loc)
             #determine where defender missile is at this time as well
                 #bearing of defender_missile
             sql = f""" SELECT ST_Azimuth(ST_Point(
@@ -617,12 +632,22 @@ class MissileServer(object):
             sql = f"""WITH Q1 AS (
                 SELECT ST_SetSRID(ST_Project(
                     'POINT({solution_data.firedfrom_lon} {solution_data.firedfrom_lat})'::geography, 
-                    {defend_speed*hit_time}, {defend_bearing})::geometry,4326
+                    {defend_speed*(hit_time/2)}, {defend_bearing})::geometry,4326
                 ) as p2
                 )
                 SELECT {select}
                 FROM Q1 """
             cur.execute(sql)
+            intermediate_loc2 = cur.fetchall()[0]
+            sql2 = f"""WITH Q1 AS (
+                SELECT ST_SetSRID(ST_Project(
+                    'POINT({intermediate_loc2[0]} {intermediate_loc2[1]})'::geography, 
+                    {defend_speed*(hit_time/2)}, {defend_bearing})::geometry,4326
+                ) as p2
+                )
+                SELECT {select}
+                FROM Q1 """
+            cur.execute(sql2)
             defend_loc = cur.fetchall()[0]
 
             #get blast radius bounding box for both points
