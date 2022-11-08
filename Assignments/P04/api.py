@@ -566,20 +566,21 @@ class MissileServer(object):
         # decrement the missile based on missile_type from team_id's arsenal
         sql = f"""SELECT * FROM public.missile_data WHERE missile_id = {solution_data.target_missile_id}"""
         with DatabaseCursor(CONFIGDOTJSON) as cur:
-            cur.execute(sql)
-            missile_info = cur.fetchall()[0]
-            current_lon = cur.execute(f"SELECT ST_X('{missile_info[2]}');")
-            current_lon = cur.fetchall()[0][0]
-            current_lat = cur.execute(f"SELECT ST_Y('{missile_info[2]}');")
-            current_lat = cur.fetchall()[0][0]
-            altitude = missile_info[8]
-            attack_speed = missile_info[7]
-            current_time = missile_info[1]
-            attack_bearing = missile_info[11]
-            attack_type = missile_info[12]
-            attack_droprate = missile_info[9]
-
-
+            try:
+                cur.execute(sql)
+                missile_info = cur.fetchall()[0]
+                current_lon = cur.execute(f"SELECT ST_X('{missile_info[2]}');")
+                current_lon = cur.fetchall()[0][0]
+                current_lat = cur.execute(f"SELECT ST_Y('{missile_info[2]}');")
+                current_lat = cur.fetchall()[0][0]
+                altitude = missile_info[8]
+                attack_speed = missile_info[7]
+                current_time = missile_info[1]
+                attack_bearing = missile_info[11]
+                attack_type = missile_info[12]
+                attack_droprate = missile_info[9]
+            except Exception:
+                return {" Initial sql error "}
             #Get how long until missiles are supposed to hit each other
             #yes this is stupid but I can't use total_seconds without converting to a timedelta and I don't want
             #to do that. I'm stuck between a rock and a hard place \o-o\
@@ -587,13 +588,13 @@ class MissileServer(object):
             try:
                 # Using strptime with datetime we will format
                 # string into datetime
-                t_time = target_time
+                t_time = solution_data.expected_hit_time
                 target_time = datetime.strptime(solution_data.expected_hit_time, format_data)
                 current_time = (current_time.hour * 60 + current_time.minute) * 60 + current_time.second
                 target_time = (target_time.hour * 60 + target_time.minute) * 60 + target_time.second
                 hit_time = target_time - current_time
             except Exception:
-                return{'invalid time' : t_time}
+                return{'Invalid time'}
             try:
                 # print("----------  here -------------")
                 # print(current_lon)
