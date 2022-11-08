@@ -583,7 +583,7 @@ class MissileServer(object):
             #Get how long until missiles are supposed to hit each other
             #yes this is stupid but I can't use total_seconds without converting to a timedelta and I don't want
             #to do that. I'm stuck between a rock and a hard place \o-o\
-            format_data = "%d/%m/%y %H:%M:%S.%f"
+            format_data = "%d/%m/%y %H:%M:%S"
             try:
                 # Using strptime with datetime we will format
                 # string into datetime
@@ -591,6 +591,9 @@ class MissileServer(object):
                 current_time = (current_time.hour * 60 + current_time.minute) * 60 + current_time.second
                 target_time = (target_time.hour * 60 + target_time.minute) * 60 + target_time.second
                 hit_time = target_time - current_time
+            except Exception:
+                return{'invalid time' : target_time}
+            try:
                 # print("----------  here -------------")
                 # print(current_lon)
                 # print(current_lat)
