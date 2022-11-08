@@ -591,6 +591,9 @@ class MissileServer(object):
                 current_time = (current_time.hour * 60 + current_time.minute) * 60 + current_time.second
                 target_time = (target_time.hour * 60 + target_time.minute) * 60 + target_time.second
                 hit_time = target_time - current_time
+            except Exception:
+                return{'invalid time' : target_time}
+            try:
                 # print("----------  here -------------")
                 # print(current_lon)
                 # print(current_lat)
