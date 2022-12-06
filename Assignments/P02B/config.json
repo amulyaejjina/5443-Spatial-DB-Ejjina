@@ -1,0 +1,8 @@
+{
+    "dbname":"Project1",
+    "user":"amulyaejjina",
+    "password":"248",
+    "port":"5432",
+    "schema":"public",
+    "host":"localhost"
+}

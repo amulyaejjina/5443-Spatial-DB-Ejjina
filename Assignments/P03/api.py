@@ -480,7 +480,7 @@ class MissileServer(object):
         2. For each row,get current required columns
         3. Calculations
         4. Update same row with calculated current values
-        5. Repeat samew for all rows
+        5. Repeat same for all rows
         '''
         # Format of rows fetched fromt table - [(),(),()]
     
