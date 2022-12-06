@@ -107,8 +107,8 @@ app = FastAPI(
  | |) / _ \| |/ _ \
  |___/_/ \_\_/_/ \_\
 """
-#CONFIGDOTJSON = '/home/attack/config.json'  #Server config file
-CONFIGDOTJSON = "config.json"               #testing config file
+CONFIGDOTJSON = '/home/attack/config.json'  #Server config file
+#CONFIGDOTJSON = "config.json"               #testing config file
 
 # stores defenders playing missile command
 participants = {}
@@ -786,7 +786,7 @@ class MissileServer(object):
                 #Check to see if altitudes are within range as well    
                 else:
                     #drop down to expected altitude
-                    attack_altitude = altitude - (attack_droprate * attack_speed)
+                    attack_altitude = altitude - (attack_droprate * hit_time)
                     defend_altitude  = solution_data.target_alt
                     altitude_diff = abs(attack_altitude - defend_altitude)
 
