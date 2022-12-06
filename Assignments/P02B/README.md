@@ -2,7 +2,7 @@
 ## Project 02B - Missile Command (Part 1)
 
 <center>
-<img src="missile_paths.JPG" width="300">
+<img src="https://miro.medium.com/max/1400/1*6oQAh2tGYABlNJBmqNsaLA.webp" width="300">
 </center>
 
 ## Overview
