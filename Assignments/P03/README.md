@@ -35,5 +35,5 @@ it can be reset to be played again if desired.
 ### Main Files:
 |   #   | File Link | Description |
 | :---: | ----------- | ---------------------- |
-|  01  | [api.py](https://github.com/apwarren/5443-Spatial-DB-Warren/tree/master/Assignments/P04/api.py) | main python file. Contains all code for generating, updating, and verifying missiles as well as route calls |
-|  02  | [background.py](https://github.com/apwarren/5443-Spatial-DB-Warren/tree/master/Assignments/P04/background.py) | python file containing the background process for missile generation and updating while waiting for api calls |
+|  01  | [api.py](https://github.com/amulyaejjina/5443-Spatial-DB-Ejjina/edit/main/Assignments/P03/api.py) | main python file. Contains all code for generating, updating, and verifying missiles as well as route calls |
+|  02  | [background.py](https://github.com/amulyaejjina/5443-Spatial-DB-Ejjina/edit/main/Assignments/P03/background.py) | python file containing the background process for missile generation and updating while waiting for api calls |
