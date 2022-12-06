@@ -1,3 +1,56 @@
+"""
+
+ !!! MISSILE COMMAND !!!
+
+Description : 
+        This is a missile showdown...
+        The idea here is,we have two teams - 
+        1.Attackers - Who are gonna send missiles to a region with some defined
+          speed,altitude,angle/bearing,missile type,current location and all other necessary
+          details
+        2.Defenders - Who keep track of all the missiles fired by attackers and try to
+          validate which missile is going to hit their region and defend by firing
+          counter missiles to take down the attacker missile.
+Register :
+        This route gives out the initial data required by the teams - 
+        1. Region polygon as a geojson
+        2. Arsenal - what kind of missiles and the count of them
+        3. Cities list
+        4. A unique team ID
+
+Create Missiles :
+        Extract boundary multiline string from bounding box
+	    Generating random point on the box(missile start point) for every new missile
+        1. Get bounding box of US
+        2. Extract boundary from it
+        3. Create points on the boundary Ising postGIS functionsST_MakePoin/ST_Poin 
+	        Or any other similar functions available in posts.
+        4. Write a function, which when called, randomly generates a point on the boundary and directs it towards a city in a region.
+        In one call a bunch of missiles gets created towards each region
+
+Update missiles :
+	    Calculating next point using ST_Project postgis function
+	    Calculating next altitude
+        Calculating updated drop rate
+        Calculating updated bearing
+        Upating all the new values of particular missile in the database every second
+
+Radar sweep :
+         show missiles in their vicinity - some radius from base
+		Querying DB of which missiles lie in that radius ish area and sen back missiles		
+        Track shot down missiles and remove from sweep
+		Track missed missiles and remove from sweep
+		
+Post End of simulation statistics:
+		how many missiles were sent to specific region
+		how many were tackled
+		how many were shot down
+		Success rate
+		Miss rate
+    ST_Intersects - returns true/false based on if intersects or not
+    ST_Intercestion - returns intersecting point geometry
+
+"""
 from ctypes.wintypes import tagRECT
 from imp import source_from_cache
 import math
